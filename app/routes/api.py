@@ -7,7 +7,6 @@ from flask import Blueprint, jsonify, request, session
 from app.models.database import get_db, rows_to_list
 from app.routes.auth import login_required, analyst_required, admin_required
 from datetime import datetime, timedelta
-import random
 
 api_bp = Blueprint('api', __name__)
 
@@ -85,7 +84,25 @@ def summary():
         dept_risk.setdefault(u['dept'],{'high':0,'total':0})
         dept_risk[u['dept']]['total']+=1
         if u['risk'] in ('critical','high'): dept_risk[u['dept']]['high']+=1
-    trend=[{'day':i+1,'critical':random.randint(2,5),'high':random.randint(3,8),'medium':random.randint(3,7)} for i in range(30)]
+    # Build real 30-day trend from audit_logs
+    from datetime import date, timedelta
+    today = date.today()
+    trend = []
+    for i in range(29, -1, -1):
+        day_date = (today - timedelta(days=i)).strftime('%Y-%m-%d')
+        day_num  = 30 - i
+        # Count events by severity/type for this day
+        critical = db.execute(
+            "SELECT COUNT(*) FROM audit_logs WHERE timestamp LIKE ? AND type='escalate'",
+            (day_date + '%',)).fetchone()[0]
+        high = db.execute(
+            "SELECT COUNT(*) FROM audit_logs WHERE timestamp LIKE ? AND result='failed'",
+            (day_date + '%',)).fetchone()[0]
+        medium = db.execute(
+            "SELECT COUNT(*) FROM audit_logs WHERE timestamp LIKE ? AND type IN ('modify','delete')",
+            (day_date + '%',)).fetchone()[0]
+        trend.append({'day': day_num, 'date': day_date,
+                      'critical': critical, 'high': high, 'medium': medium})
     threats=db.execute("SELECT COUNT(*) FROM threats WHERE status='active'").fetchone()[0]
     recent=rows_to_list(db.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 5").fetchall())
     for e in recent:
