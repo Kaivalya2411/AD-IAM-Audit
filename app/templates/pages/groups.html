@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Groups — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Group Management{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Group Management</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('groupsBody','groups_export.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateGroup()">+ Add Group</button>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="groupSearch" placeholder="Search groups…" oninput="loadGroups()"/>
+  </div>
+  <select class="select" id="typeFilter" onchange="loadGroups()">
+    <option value="">All Types</option><option value="Security">Security</option><option value="Distribution">Distribution</option>
+  </select>
+  <select class="select" id="privFilter" onchange="loadGroups()">
+    <option value="">All</option><option value="true">Privileged Only</option>
+  </select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Group Name</th><th>Type</th><th>Members</th><th>Privileged</th><th>Nested</th><th>Description</th><th>Modified</th><th>Actions</th></tr></thead>
+    <tbody id="groupsBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+async function loadGroups(){
+  const q=document.getElementById('groupSearch').value,type=document.getElementById('typeFilter').value,priv=document.getElementById('privFilter').value;
+  const data=await API.get(`/groups?q=${q}&type=${type}&privileged=${priv}`);
+  if(!data)return;
+  document.getElementById('groupsBody').innerHTML=data.length?data.map(g=>`
+    <tr>
+      <td><b class="text-info mono">${esc(g.name)}</b></td>
+      <td>${g.type==='Security'?'<span class="badge badge-info">Security</span>':'<span class="badge badge-dim">Distribution</span>'}</td>
+      <td class="mono">${g.members}</td>
+      <td>${g.privileged?'<span class="badge badge-danger">YES</span>':'<span class="badge badge-dim">No</span>'}</td>
+      <td class="mono">${g.nested>0?`<span class="text-warn">${g.nested}</span>`:'—'}</td>
+      <td class="small text-dim">${esc(g.description)||'—'}</td>
+      <td class="mono small text-dim">${g.modified||'—'}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditGroup(${g.id})">Edit</button>
+        <button class="action-btn danger" onclick="confirmDeleteGroup(${g.id},'${esc(g.name)}')">Delete</button>
+      </div></td>
+    </tr>`).join(''):'<tr><td colspan="8" class="empty-state">No groups found.</td></tr>';
+}
+
+function _groupForm(title,vals,submitFn){
+  FORM.open(title,`
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field col-span-2"><label>Group Name <span class="req">*</span></label>
+        <input class="field-input" id="fg-name" data-required value="${esc(vals.name)||''}" placeholder="IT Support"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Type</label>
+        <select class="field-select" id="fg-type">
+          <option value="Security" ${vals.type==='Security'?'selected':''}>Security</option>
+          <option value="Distribution" ${vals.type==='Distribution'?'selected':''}>Distribution</option>
+        </select></div>
+      <div class="field"><label>Nested Groups</label>
+        <input class="field-input" id="fg-nested" type="number" min="0" value="${vals.nested||0}"/></div>
+      <div class="field col-span-2"><label>Description</label>
+        <input class="field-input" id="fg-desc" value="${esc(vals.description)||''}" placeholder="Group purpose…"/></div>
+      <div class="field"><label>Privileged Group</label>
+        <div class="field-toggle-row"><span class="field-toggle-label">Has elevated permissions</span>
+          <label class="toggle"><input type="checkbox" id="fg-priv" ${vals.privileged?'checked':''}/><span></span></label>
+        </div></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${submitFn}">Save</button>
+    </div>`,{size:'modal-lg'});
+}
+
+function openCreateGroup(){ _groupForm('Add New Group',{},'submitSaveGroup(null)'); }
+
+async function openEditGroup(gid){
+  const g=await API.get(`/groups/${gid}`);
+  if(!g)return;
+  _groupForm('Edit Group: '+g.name,g,`submitSaveGroup(${gid})`);
+}
+
+async function submitSaveGroup(gid){
+  if(!FORM.validate())return;
+  const p={name:document.getElementById('fg-name').value.trim(),type:document.getElementById('fg-type').value,
+    nested:parseInt(document.getElementById('fg-nested').value)||0,
+    description:document.getElementById('fg-desc').value.trim(),
+    privileged:document.getElementById('fg-priv').checked};
+  const res=gid?await API._req('PUT',`/groups/${gid}`,p):await API.post('/groups',p);
+  if(!res||res.error){FORM.msg('error',res?.error||'Failed');return;}
+  FORM.close(); showToast('✓ Group '+(gid?'updated':'created'),'ok'); loadGroups();
+}
+
+function confirmDeleteGroup(gid,name){
+  FORM.confirm('Delete Group',name,async()=>{
+    const res=await API.del(`/groups/${gid}`);
+    showToast(res?.message||'Deleted','ok'); loadGroups();
+  });
+}
+
+loadGroups();
+</script>
+{% endblock %}

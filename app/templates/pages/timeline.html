@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Timeline — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Audit Timeline{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Audit Timeline</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('timelineBody','timeline.csv')">⬇ CSV</button>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="tlSearch" placeholder="Search user, action, detail…" oninput="loadTimeline()"/>
+  </div>
+  <select class="select" id="tlCatFilter" onchange="loadTimeline()">
+    <option value="">All Categories</option>
+    <option value="auth">Auth</option>
+    <option value="change">Change</option>
+    <option value="security">Security</option>
+  </select>
+  <select class="select" id="tlSevFilter" onchange="loadTimeline()">
+    <option value="">All Severity</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="warn">Warning</option>
+    <option value="info">Info</option>
+  </select>
+</div>
+
+<div class="panel">
+  <div class="timeline-wrap" id="timelineWrap">
+    <p class="empty-state">Loading…</p>
+  </div>
+  <div class="table-footer" id="timelinePager"></div>
+</div>
+
+<!-- hidden table for CSV export -->
+<table style="display:none"><tbody id="timelineBody"></tbody></table>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.timeline-wrap { padding: 1rem 1.5rem; }
+.tl-item {
+  display: flex; gap: 1rem; padding: .65rem 0;
+  border-left: 2px solid var(--border);
+  margin-left: .5rem; padding-left: 1.25rem; position: relative;
+}
+.tl-item::before {
+  content: ''; position: absolute;
+  left: -5px; top: 50%; transform: translateY(-50%);
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border2);
+}
+.tl-item.critical::before { background: var(--red);   box-shadow: 0 0 5px var(--red); }
+.tl-item.high::before     { background: var(--red);   }
+.tl-item.warn::before     { background: var(--amber); }
+.tl-item.info::before     { background: var(--cyan);  }
+.tl-time  { font-family: var(--mono); font-size: .65rem; color: var(--text2); min-width: 130px; padding-top: 2px; }
+.tl-body  { flex: 1; }
+.tl-action{ font-weight: 600; font-size: .8rem; color: var(--text0); }
+.tl-detail{ font-size: .72rem; color: var(--text2); margin-top: 2px; }
+.tl-meta  { display: flex; gap: .5rem; margin-top: .25rem; align-items: center; }
+</style>
+<script>
+let tlPage = 1;
+async function loadTimeline(page=1) {
+  tlPage = page;
+  const q  = document.getElementById('tlSearch').value;
+  const c  = document.getElementById('tlCatFilter').value;
+  const sv = document.getElementById('tlSevFilter').value;
+  const data = await API.get(`/timeline?q=${q}&category=${c}&severity=${sv}&page=${page}&size=15`);
+  if (!data) return;
+
+  const catBadge = c => ({
+    'auth':    '<span class="badge badge-info">Auth</span>',
+    'change':  '<span class="badge badge-warn">Change</span>',
+    'security':'<span class="badge badge-danger">Security</span>',
+  }[c] || `<span class="badge badge-dim">${c}</span>`);
+
+  document.getElementById('timelineWrap').innerHTML = data.items.length
+    ? data.items.map(t => `
+      <div class="tl-item ${t.severity}">
+        <div class="tl-time">${t.timestamp}</div>
+        <div class="tl-body">
+          <div class="tl-action">${t.action}</div>
+          <div class="tl-detail">${t.detail}</div>
+          <div class="tl-meta">
+            ${catBadge(t.category)}
+            ${riskBadge(t.severity)}
+            <span class="mono small text-info">${t.username||'—'}</span>
+            <span class="mono small text-dim">${t.ip||''}</span>
+          </div>
+        </div>
+      </div>
+    `).join('')
+    : '<p class="empty-state">No timeline events found.</p>';
+
+  // also populate hidden table for CSV
+  document.getElementById('timelineBody').innerHTML = data.items.map(t =>
+    `<tr><td>${t.timestamp}</td><td>${t.username||''}</td><td>${t.action}</td><td>${t.detail}</td><td>${t.category}</td><td>${t.severity}</td><td>${t.ip||''}</td></tr>`
+  ).join('');
+
+  renderPager('timelinePager', data.total, page, 15, p => loadTimeline(p));
+}
+loadTimeline();
+</script>
+{% endblock %}

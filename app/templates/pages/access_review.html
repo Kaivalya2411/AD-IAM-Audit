@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Access Reviews — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Access Review Workflow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Access Review Workflow</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('reviewBody','access_reviews.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateReview()">+ New Review</button>
+  </div>
+</div>
+<div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="kpi-card warn"><div class="kpi-icon">⏳</div><div class="kpi-body"><div class="kpi-value" id="k-pending">—</div><div class="kpi-label">Pending</div></div></div>
+  <div class="kpi-card ok"><div class="kpi-icon">✓</div><div class="kpi-body"><div class="kpi-value" id="k-approved">—</div><div class="kpi-label">Approved</div></div></div>
+  <div class="kpi-card danger"><div class="kpi-icon">✕</div><div class="kpi-body"><div class="kpi-value" id="k-revoked">—</div><div class="kpi-label">Revoked</div></div></div>
+  <div class="kpi-card info"><div class="kpi-icon">📋</div><div class="kpi-body"><div class="kpi-value" id="k-total-r">—</div><div class="kpi-label">Total</div></div></div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="reviewSearch" placeholder="Search user, resource…" oninput="loadReviews()"/>
+  </div>
+  <select class="select" id="reviewDecisionFilter" onchange="loadReviews()">
+    <option value="">All Decisions</option>
+    <option value="pending">Pending</option><option value="approved">Approved</option><option value="revoked">Revoked</option>
+  </select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Username</th><th>Resource</th><th>Access Type</th><th>Granted By</th><th>Review Due</th><th>Reviewer</th><th>Decision</th><th>Notes</th><th>Actions</th></tr></thead>
+    <tbody id="reviewBody"><tr><td colspan="9" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let REVIEW_CACHE = [];
+const decBadge = d => ({'pending':'<span class="badge badge-warn">Pending</span>','approved':'<span class="badge badge-ok">Approved</span>','revoked':'<span class="badge badge-danger">Revoked</span>'}[d]||`<span class="badge badge-dim">${d}</span>`);
+
+async function loadReviews() {
+  const q=document.getElementById('reviewSearch').value, d=document.getElementById('reviewDecisionFilter').value;
+  const data = await API.get(`/access-reviews?q=${q}&decision=${d}`);
+  if (!data||data.error) return;
+  REVIEW_CACHE = data;
+  setText('k-pending', data.filter(r=>r.decision==='pending').length);
+  setText('k-approved', data.filter(r=>r.decision==='approved').length);
+  setText('k-revoked', data.filter(r=>r.decision==='revoked').length);
+  setText('k-total-r', data.length);
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('reviewBody').innerHTML = data.length ? data.map(r => `
+    <tr class="${r.decision==='pending'&&r.review_due<today?'row-overdue':''}">
+      <td class="mono text-info">${esc(r.username)}</td>
+      <td>${esc(r.resource)}</td>
+      <td><span class="badge badge-dim">${esc(r.access_type)}</span></td>
+      <td class="text-dim small">${r.granted_by||'—'}</td>
+      <td class="mono small ${r.review_due<today&&r.decision==='pending'?'text-danger':''}">${r.review_due} ${r.review_due<today&&r.decision==='pending'?'⚠':''}}</td>
+      <td class="text-dim small">${r.reviewed_by||'—'}</td>
+      <td>${decBadge(r.decision)}</td>
+      <td class="small text-dim">${r.notes||'—'}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditReview(${r.id})">Edit</button>
+        ${r.decision==='pending'?`<button class="action-btn" onclick="decideReview(${r.id},'approved')">Approve</button><button class="action-btn danger" onclick="decideReview(${r.id},'revoked')">Revoke</button>`:''}
+        <button class="action-btn danger" onclick="confirmDeleteReview(${r.id},'${esc(r.username)}:${r.resource.replace(/'/g,'')}')">Delete</button>
+      </div></td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty-state">No reviews found.</td></tr>';
+}
+
+function _reviewForm(title, v, fn) {
+  const minDate = new Date().toISOString().slice(0,10);
+  FORM.open(title, `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field"><label>Username <span class="req">*</span></label>
+        <input class="field-input" id="rv-user" data-required value="${esc(v.username)||''}" placeholder="jsmith"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Resource <span class="req">*</span></label>
+        <input class="field-input" id="rv-resource" data-required value="${esc(v.resource)||''}" placeholder="Finance Share, VPN Access…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Access Type <span class="req">*</span></label>
+        <input class="field-input" id="rv-atype" data-required value="${esc(v.access_type)||''}" placeholder="Read, Write, Admin…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Granted By</label>
+        <input class="field-input" id="rv-grantedby" value="${v.granted_by||''}" placeholder="manager username"/></div>
+      <div class="field"><label>Review Due <span class="req">*</span></label>
+        <input class="field-input" id="rv-due" data-required type="date" value="${v.review_due||minDate}"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Decision</label>
+        <select class="field-select" id="rv-decision">
+          <option value="pending" ${v.decision==='pending'||!v.decision?'selected':''}>Pending</option>
+          <option value="approved" ${v.decision==='approved'?'selected':''}>Approved</option>
+          <option value="revoked" ${v.decision==='revoked'?'selected':''}>Revoked</option>
+        </select></div>
+      <div class="field col-span-2"><label>Notes</label>
+        <textarea class="field-textarea" id="rv-notes" style="min-height:55px">${v.notes||''}</textarea></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`, {size:'modal-lg'});
+}
+
+function openCreateReview() { _reviewForm('New Access Review', {}, 'submitSaveReview(null)'); }
+function openEditReview(id) {
+  const r = REVIEW_CACHE.find(x=>x.id===id); if(!r) return;
+  _reviewForm('Edit Review: '+r.username, r, `submitSaveReview(${id})`);
+}
+async function submitSaveReview(id) {
+  if (!FORM.validate()) return;
+  const p = {username:document.getElementById('rv-user').value.trim(),resource:document.getElementById('rv-resource').value.trim(),
+    access_type:document.getElementById('rv-atype').value.trim(),granted_by:document.getElementById('rv-grantedby').value.trim(),
+    review_due:document.getElementById('rv-due').value,decision:document.getElementById('rv-decision').value,
+    notes:document.getElementById('rv-notes').value.trim()};
+  const res = id ? await API._req('PUT',`/access-reviews/${id}`,p) : await API.post('/access-reviews',p);
+  if (res?.error) { FORM.msg('error', res.error); return; }
+  FORM.close(); showToast('✓ Review saved','ok'); loadReviews();
+}
+async function decideReview(id, decision) {
+  const res = await API.patch(`/access-reviews/${id}/decide`, {decision});
+  if (res?.error) return;
+  showToast(decision==='approved'?'✓ Access approved':'Access revoked', decision==='approved'?'ok':'warn');
+  loadReviews();
+}
+function confirmDeleteReview(id, label) {
+  FORM.confirm('Delete Access Review', label, async()=>{ await API.del(`/access-reviews/${id}`); showToast('Deleted','ok'); loadReviews(); });
+}
+loadReviews();
+</script>
+<style>.row-overdue { background: rgba(248,113,113,.04); }</style>
+{% endblock %}

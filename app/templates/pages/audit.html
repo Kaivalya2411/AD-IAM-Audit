@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Audit Log{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Audit Log</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('auditBody','audit_export.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateAuditEntry()">+ Manual Entry</button>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="auditSearch" placeholder="Search user, target…" oninput="loadAudit()"/>
+  </div>
+  <select class="select" id="typeFilter" onchange="loadAudit()">
+    <option value="">All Types</option>
+    <option value="login">Login</option><option value="modify">Modify</option>
+    <option value="create">Create</option><option value="delete">Delete</option><option value="escalate">Escalate</option>
+  </select>
+  <select class="select" id="resultFilter" onchange="loadAudit()">
+    <option value="">All Results</option>
+    <option value="success">Success</option><option value="failed">Failed</option>
+  </select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Event ID</th><th>Type</th><th>User</th><th>Target</th><th>Source IP</th><th>Timestamp</th><th>Result</th><th>Actions</th></tr></thead>
+    <tbody id="auditBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+  <div class="table-footer" id="auditPager"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+async function loadAudit(page=1) {
+  const user=document.getElementById('auditSearch').value, type=document.getElementById('typeFilter').value, result=document.getElementById('resultFilter').value;
+  const data = await API.get(`/audit?user=${user}&type=${type}&result=${result}&page=${page}&size=15`);
+  if (!data||data.error) return;
+  document.getElementById('auditBody').innerHTML = data.items.length ? data.items.map(e => `
+    <tr>
+      <td class="mono small text-dim">${e.event_id}</td>
+      <td>${typeBadge(e.type)}</td>
+      <td class="mono text-info">${e.user}</td>
+      <td>${esc(e.target)}</td>
+      <td class="mono small text-dim">${esc(e.ip)}</td>
+      <td class="mono small text-dim">${e.time}</td>
+      <td>${resultBadge(e.result)}</td>
+      <td><button class="action-btn danger" onclick="confirmDeleteEntry(${e.id},'${e.event_id}')">Delete</button></td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty-state">No events found.</td></tr>';
+  renderPager('auditPager', data.total, page, 15, p=>loadAudit(p));
+}
+
+function openCreateAuditEntry() {
+  FORM.open('Add Manual Audit Entry', `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="field-hint" style="margin-bottom:.75rem;padding:.5rem .75rem;background:var(--bg3);border-radius:6px;border-left:3px solid var(--amber)">
+      Manual entries are used to document events that happened outside the system (e.g. phone calls, physical access, external changes).
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Event Type <span class="req">*</span></label>
+        <select class="field-select" id="ae-type" data-required>
+          <option value="login">Login</option><option value="modify">Modify</option>
+          <option value="create">Create</option><option value="delete">Delete</option><option value="escalate">Escalate</option>
+        </select></div>
+      <div class="field"><label>Username <span class="req">*</span></label>
+        <input class="field-input" id="ae-user" data-required placeholder="jsmith"/>
+        <div class="field-error">Required</div></div>
+      <div class="field col-span-2"><label>Target <span class="req">*</span></label>
+        <input class="field-input" id="ae-target" data-required placeholder="user:jdoe, server:DC01, policy:MFA…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Source IP</label>
+        <input class="field-input" id="ae-ip" placeholder="10.0.0.1"/></div>
+      <div class="field"><label>Result</label>
+        <select class="field-select" id="ae-result">
+          <option value="success">Success</option><option value="failed">Failed</option>
+        </select></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateEntry()">Add Entry</button>
+    </div>`, {size:'modal-lg'});
+}
+
+async function submitCreateEntry() {
+  if (!FORM.validate()) return;
+  const p = {type:document.getElementById('ae-type').value, username:document.getElementById('ae-user').value.trim(),
+    target:document.getElementById('ae-target').value.trim(), source_ip:document.getElementById('ae-ip').value.trim(),
+    result:document.getElementById('ae-result').value};
+  const res = await API.post('/audit', p);
+  if (res?.error) { FORM.msg('error', res.error); return; }
+  FORM.close(); showToast('✓ Audit entry added','ok'); loadAudit();
+}
+
+function confirmDeleteEntry(id, eventId) {
+  FORM.confirm('Delete Audit Entry', eventId, async()=>{ await API.del(`/audit/${id}`); showToast('Entry deleted','ok'); loadAudit(); });
+}
+loadAudit();
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Assets — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Asset Inventory{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Asset Inventory</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('assetBody','assets.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateAsset()">+ Add Asset</button>
+  </div>
+</div>
+<div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="kpi-card info"><div class="kpi-icon">🖥</div><div class="kpi-body"><div class="kpi-value" id="k-atotal">—</div><div class="kpi-label">Total</div></div></div>
+  <div class="kpi-card ok"><div class="kpi-icon">✓</div><div class="kpi-body"><div class="kpi-value" id="k-aactive">—</div><div class="kpi-label">Active</div></div></div>
+  <div class="kpi-card warn"><div class="kpi-icon">⊘</div><div class="kpi-body"><div class="kpi-value" id="k-astale">—</div><div class="kpi-label">Stale</div></div></div>
+  <div class="kpi-card danger"><div class="kpi-icon">🔴</div><div class="kpi-body"><div class="kpi-value" id="k-acrit">—</div><div class="kpi-label">Critical Risk</div></div></div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="assetSearch" placeholder="Search hostname, IP, owner…" oninput="loadAssets()"/>
+  </div>
+  <select class="select" id="assetTypeFilter" onchange="loadAssets()">
+    <option value="">All Types</option>
+    <option value="Domain Controller">Domain Controller</option><option value="File Server">File Server</option>
+    <option value="Workstation">Workstation</option><option value="Backup Server">Backup Server</option>
+    <option value="Web Server">Web Server</option><option value="App Server">App Server</option>
+    <option value="Virtual Machine">Virtual Machine</option><option value="Print Server">Print Server</option>
+  </select>
+  <select class="select" id="assetStatusFilter" onchange="loadAssets()">
+    <option value="">All Status</option><option value="active">Active</option><option value="stale">Stale</option>
+  </select>
+  <select class="select" id="assetRiskFilter" onchange="loadAssets()">
+    <option value="">All Risk</option><option value="critical">Critical</option>
+    <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+  </select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Hostname</th><th>IP</th><th>Type</th><th>OS</th><th>Owner</th><th>Dept</th><th>Last Seen</th><th>Status</th><th>Risk</th><th>Actions</th></tr></thead>
+    <tbody id="assetBody"><tr><td colspan="10" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+async function loadAssets(){
+  const q=document.getElementById('assetSearch').value,t=document.getElementById('assetTypeFilter').value,
+    st=document.getElementById('assetStatusFilter').value,r=document.getElementById('assetRiskFilter').value;
+  const[data,sum]=await Promise.all([API.get(`/assets?q=${q}&type=${encodeURIComponent(t)}&status=${st}&risk=${r}`),API.get('/assets/summary')]);
+  if(sum){setText('k-atotal',sum.total);setText('k-aactive',sum.active);setText('k-astale',sum.stale);setText('k-acrit',sum.critical);}
+  if(!data)return;
+  document.getElementById('assetBody').innerHTML=data.length?data.map(a=>`
+    <tr>
+      <td class="mono text-info">${esc(a.hostname)}</td><td class="mono small text-dim">${esc(a.ip)||'—'}</td>
+      <td><span class="badge badge-dim">${esc(a.type)}</span></td>
+      <td class="small">${a.os||'—'} ${a.os&&a.os.includes('2012')?'<span class="badge badge-danger" style="margin-left:4px">EOL</span>':''}</td>
+      <td class="text-dim">${esc(a.owner)||'—'}</td><td class="text-dim">${esc(a.dept)||'—'}</td>
+      <td class="mono small text-dim">${a.last_seen||'—'}</td>
+      <td>${a.status==='active'?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-warn">Stale</span>'}</td>
+      <td>${riskBadge(a.risk)}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditAsset(${a.id})">Edit</button>
+        <button class="action-btn danger" onclick="confirmDeleteAsset(${a.id},'${esc(a.hostname)}')">Delete</button>
+      </div></td>
+    </tr>`).join(''):'<tr><td colspan="10" class="empty-state">No assets found.</td></tr>';
+}
+
+function _assetForm(title,vals,fn){
+  FORM.open(title,`
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field"><label>Hostname <span class="req">*</span></label>
+        <input class="field-input" id="fa2-hostname" data-required value="${esc(vals.hostname)||''}" placeholder="DC01"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>IP Address</label>
+        <input class="field-input" id="fa2-ip" value="${esc(vals.ip)||''}" placeholder="10.0.0.1"/></div>
+      <div class="field"><label>Type <span class="req">*</span></label>
+        <select class="field-select" id="fa2-type">
+          ${['Domain Controller','File Server','Workstation','Backup Server','Web Server','App Server','Virtual Machine','Print Server'].map(t=>`<option value="${t}" ${vals.type===t?'selected':''}>${t}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Operating System</label>
+        <input class="field-input" id="fa2-os" value="${vals.os||''}" placeholder="Windows Server 2022"/></div>
+      <div class="field"><label>Owner</label>
+        <input class="field-input" id="fa2-owner" value="${esc(vals.owner)||''}" placeholder="username or team"/></div>
+      <div class="field"><label>Department</label>
+        <input class="field-input" id="fa2-dept" value="${esc(vals.dept)||''}" placeholder="IT"/></div>
+      <div class="field"><label>Last Seen</label>
+        <input class="field-input" id="fa2-seen" type="date" value="${vals.last_seen||new Date().toISOString().slice(0,10)}"/></div>
+      <div class="field"><label>Status</label>
+        <select class="field-select" id="fa2-status">
+          <option value="active" ${vals.status==='active'?'selected':''}>Active</option>
+          <option value="stale" ${vals.status==='stale'?'selected':''}>Stale</option>
+        </select></div>
+      <div class="field"><label>Risk Level</label>
+        <select class="field-select" id="fa2-risk">
+          <option value="low" ${vals.risk==='low'?'selected':''}>Low</option>
+          <option value="medium" ${vals.risk==='medium'?'selected':''}>Medium</option>
+          <option value="high" ${vals.risk==='high'?'selected':''}>High</option>
+          <option value="critical" ${vals.risk==='critical'?'selected':''}>Critical</option>
+        </select></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`,{size:'modal-lg'});
+}
+
+function openCreateAsset(){ _assetForm('Add Asset',{},'submitSaveAsset(null)'); }
+async function openEditAsset(aid){
+  const data=await API.get('/assets?q=');
+  const a=data?.find(x=>x.id===aid); if(!a)return;
+  _assetForm('Edit Asset: '+a.hostname,a,`submitSaveAsset(${aid})`);
+}
+async function submitSaveAsset(aid){
+  if(!FORM.validate())return;
+  const p={hostname:document.getElementById('fa2-hostname').value.trim(),ip:document.getElementById('fa2-ip').value.trim(),
+    type:document.getElementById('fa2-type').value,os:document.getElementById('fa2-os').value.trim(),
+    owner:document.getElementById('fa2-owner').value.trim(),dept:document.getElementById('fa2-dept').value.trim(),
+    last_seen:document.getElementById('fa2-seen').value,status:document.getElementById('fa2-status').value,
+    risk:document.getElementById('fa2-risk').value};
+  const res=aid?await API._req('PUT',`/assets/${aid}`,p):await API.post('/assets',p);
+  if(!res||res.error){FORM.msg('error',res?.error||'Failed');return;}
+  FORM.close(); showToast('✓ Asset saved','ok'); loadAssets();
+}
+function confirmDeleteAsset(aid,hostname){
+  FORM.confirm('Delete Asset',hostname,async()=>{await API.del('/assets/'+aid);showToast('Deleted','ok');loadAssets();});
+}
+loadAssets();
+</script>
+{% endblock %}

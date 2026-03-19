@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}My Profile — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}My Profile{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">My Profile</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;max-width:900px">
+
+  <!-- Account Info -->
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">👤 Account Information</span></div>
+    <div style="padding:1.1rem">
+      <div id="profileMsg" class="form-msg" style="margin-bottom:.75rem"></div>
+
+      <!-- Avatar circle -->
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border)">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--cyan-dim);border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:600;color:var(--cyan);font-family:var(--mono)">
+          {{ (current_user.name or 'A')[0].upper() }}
+        </div>
+        <div>
+          <div style="font-size:.9rem;font-weight:600;color:var(--text0)">{{ current_user.name }}</div>
+          <div style="font-size:.72rem;color:var(--text2)">@{{ current_user.username }}</div>
+          <span class="badge {% if current_user.role == 'admin' %}badge-danger{% elif current_user.role == 'analyst' %}badge-info{% else %}badge-dim{% endif %}" style="margin-top:.3rem">
+            {{ current_user.role|upper }}
+          </span>
+        </div>
+      </div>
+
+      <div class="form-grid" style="grid-template-columns:1fr">
+        <div class="field">
+          <label>Display Name</label>
+          <input class="field-input" id="pf-name" value="{{ current_user.name or '' }}" placeholder="Your name"/>
+        </div>
+        <div class="field">
+          <label>Email Address</label>
+          <input class="field-input" id="pf-email" type="email" value="{{ current_user.email or '' }}" placeholder="you@corp.local"/>
+        </div>
+        <div class="field">
+          <label>Username</label>
+          <input class="field-input" value="{{ current_user.username }}" readonly style="opacity:.6;cursor:not-allowed"/>
+          <div class="field-hint">Username cannot be changed</div>
+        </div>
+        <div class="field">
+          <label>Last Login</label>
+          <input class="field-input" value="{{ current_user.last_login or 'First login' }}" readonly style="opacity:.6"/>
+        </div>
+      </div>
+      <div class="form-footer" style="padding-top:.75rem;border-top:1px solid var(--border)">
+        <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password -->
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">🔑 Change Password</span></div>
+    <div style="padding:1.1rem">
+      <div id="pwMsg" class="form-msg" style="margin-bottom:.75rem"></div>
+      <div class="form-grid" style="grid-template-columns:1fr">
+        <div class="field">
+          <label>Current Password <span class="req">*</span></label>
+          <input class="field-input" id="pw-current" type="password" placeholder="Your current password"/>
+        </div>
+        <div class="field">
+          <label>New Password <span class="req">*</span></label>
+          <input class="field-input" id="pw-new" type="password" placeholder="Min 8 characters" oninput="checkPwStrength()"/>
+          <div class="strength-bar-wrap" style="margin-top:.35rem"><div class="strength-bar" id="pw-bar" style="width:0%"></div></div>
+        </div>
+        <div class="field">
+          <label>Confirm New Password <span class="req">*</span></label>
+          <input class="field-input" id="pw-confirm" type="password" placeholder="Repeat new password"/>
+        </div>
+      </div>
+      <div class="form-footer" style="padding-top:.75rem;border-top:1px solid var(--border)">
+        <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session info -->
+  <div class="panel" style="grid-column:span 2">
+    <div class="panel-hdr">
+      <span class="panel-title">🔐 Current Session</span>
+      <a href="{{ url_for('auth.logout') }}" class="btn btn-danger btn-sm" onclick="return confirm('Sign out of AD/IAM Auditor?')">
+        Sign Out
+      </a>
+    </div>
+    <div style="padding:1rem;display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.75rem">
+        <div style="font-size:.62rem;color:var(--text2);margin-bottom:.2rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">Logged in as</div>
+        <div style="font-size:.84rem;color:var(--text0);font-weight:600">{{ current_user.username }}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.75rem">
+        <div style="font-size:.62rem;color:var(--text2);margin-bottom:.2rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">Role</div>
+        <div style="font-size:.84rem;color:var(--cyan);font-weight:600">{{ current_user.role|capitalize }}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.75rem">
+        <div style="font-size:.62rem;color:var(--text2);margin-bottom:.2rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">Last Login</div>
+        <div style="font-size:.84rem;color:var(--text1)">{{ current_user.last_login or '—' }}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.75rem">
+        <div style="font-size:.62rem;color:var(--text2);margin-bottom:.2rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">Account Since</div>
+        <div style="font-size:.84rem;color:var(--text1)">{{ (current_user.created_at or '—')[:10] }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if current_user.role == 'admin' %}
+  <!-- Admin: Manage Accounts -->
+  <div class="panel" style="grid-column:span 2">
+    <div class="panel-hdr">
+      <span class="panel-title">⚙ Manage Accounts</span>
+      <button class="btn btn-primary btn-sm" onclick="openCreateAccount()">+ Add Account</button>
+    </div>
+    <table class="table">
+      <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Email</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="accountsBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function saveProfile() {
+  const name  = document.getElementById('pf-name').value.trim();
+  const email = document.getElementById('pf-email').value.trim();
+  const msg   = document.getElementById('profileMsg');
+  if (!name) { showMsg(msg,'error','Name cannot be empty'); return; }
+  const res = await fetch('/api/auth/profile', {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name, email})
+  });
+  const data = await res.json();
+  if (res.ok) { showMsg(msg,'success','✓ Profile saved'); showToast('Profile updated','ok'); }
+  else showMsg(msg,'error',data.error||'Failed');
+}
+
+async function changePassword() {
+  const current = document.getElementById('pw-current').value;
+  const newPw   = document.getElementById('pw-new').value;
+  const confirm = document.getElementById('pw-confirm').value;
+  const msg     = document.getElementById('pwMsg');
+  if (!current || !newPw) { showMsg(msg,'error','All fields required'); return; }
+  if (newPw !== confirm)  { showMsg(msg,'error','Passwords do not match'); return; }
+  if (newPw.length < 8)   { showMsg(msg,'error','Minimum 8 characters'); return; }
+  const res = await fetch('/api/auth/change-password', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({current_password:current, new_password:newPw, confirm_password:confirm})
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showMsg(msg,'success','✓ Password changed');
+    document.getElementById('pw-current').value='';
+    document.getElementById('pw-new').value='';
+    document.getElementById('pw-confirm').value='';
+    document.getElementById('pw-bar').style.width='0%';
+  } else showMsg(msg,'error',data.error||'Failed');
+}
+
+function checkPwStrength() {
+  const pw = document.getElementById('pw-new').value;
+  const score = [pw.length>=8, /[A-Z]/.test(pw), /[a-z]/.test(pw), /\d/.test(pw), /[^A-Za-z0-9]/.test(pw)].filter(Boolean).length;
+  const colors = ['#f87171','#fbbf24','#fbbf24','#4ade80','#4ade80'];
+  const bar = document.getElementById('pw-bar');
+  bar.style.width = (score/5*100)+'%';
+  bar.style.background = colors[score-1]||'var(--border2)';
+}
+
+function showMsg(el, type, text) {
+  el.className = 'form-msg '+type+' show';
+  el.innerHTML = text;
+  if (type==='success') setTimeout(()=>el.classList.remove('show'), 3000);
+}
+
+{% if current_user.role == 'admin' %}
+async function loadAccounts() {
+  const res  = await fetch('/api/auth/accounts');
+  const data = await res.json();
+  if (!Array.isArray(data)) return;
+  document.getElementById('accountsBody').innerHTML = data.map(a => `
+    <tr>
+      <td class="mono text-info">${a.username}</td>
+      <td>${a.name}</td>
+      <td><span class="badge ${a.role==='admin'?'badge-danger':a.role==='analyst'?'badge-info':'badge-dim'}">${a.role}</span></td>
+      <td class="small text-dim">${a.email||'—'}</td>
+      <td class="mono small text-dim">${a.last_login||'Never'}</td>
+      <td>${a.active?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-dim">Inactive</span>'}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="resetAccountPw(${a.id},'${a.username}')">Reset PW</button>
+        <button class="action-btn ${a.active?'danger':''}" onclick="toggleAccount(${a.id},'${a.username}')">
+          ${a.active?'Disable':'Enable'}
+        </button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function openCreateAccount() {
+  FORM.open('Add Account', `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field"><label>Username <span class="req">*</span></label>
+        <input class="field-input" id="ac-user" data-required placeholder="jsmith"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Full Name <span class="req">*</span></label>
+        <input class="field-input" id="ac-name" data-required placeholder="John Smith"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Password <span class="req">*</span></label>
+        <input class="field-input" id="ac-pass" data-required type="password" placeholder="Min 8 chars"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Role</label>
+        <select class="field-select" id="ac-role">
+          <option value="analyst">Analyst</option>
+          <option value="admin">Admin</option>
+          <option value="viewer">Viewer</option>
+        </select></div>
+      <div class="field col-span-2"><label>Email</label>
+        <input class="field-input" id="ac-email" type="email" placeholder="jsmith@corp.local"/></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateAccount()">Create</button>
+    </div>`, {size:'modal-lg'});
+}
+
+async function submitCreateAccount() {
+  if (!FORM.validate()) return;
+  const p = {username:document.getElementById('ac-user').value.trim(),
+    name:document.getElementById('ac-name').value.trim(),
+    password:document.getElementById('ac-pass').value,
+    role:document.getElementById('ac-role').value,
+    email:document.getElementById('ac-email').value.trim()};
+  const res = await fetch('/api/auth/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+  const data = await res.json();
+  if(res.ok){FORM.close();showToast('✓ Account created','ok');loadAccounts();}
+  else FORM.msg('error',data.error||'Failed');
+}
+
+async function toggleAccount(id, username) {
+  if(!confirm(`Toggle account: ${username}?`)) return;
+  const res = await fetch(`/api/auth/accounts/${id}/toggle`,{method:'PATCH'});
+  const data = await res.json();
+  showToast(data.message||'Updated','ok'); loadAccounts();
+}
+
+function resetAccountPw(id, username) {
+  FORM.open('Reset Password: '+username, `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="field"><label>New Password <span class="req">*</span></label>
+      <input class="field-input" id="rp-pw" data-required type="password" placeholder="Min 8 characters"/>
+      <div class="field-error">Required</div></div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitResetPw(${id})">Reset</button>
+    </div>`);
+}
+
+async function submitResetPw(id) {
+  if(!FORM.validate()) return;
+  const pw = document.getElementById('rp-pw').value;
+  if(pw.length<8){FORM.msg('error','Min 8 characters');return;}
+  const res = await fetch(`/api/auth/accounts/${id}/reset-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  const data = await res.json();
+  if(res.ok){FORM.close();showToast('✓ Password reset','ok');}
+  else FORM.msg('error',data.error||'Failed');
+}
+
+loadAccounts();
+{% endif %}
+</script>
+{% endblock %}

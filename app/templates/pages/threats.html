@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Threats — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Threat Intelligence{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Threat Intelligence</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('threatBody','threats_export.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateThreat()">+ Add Indicator</button>
+  </div>
+</div>
+<div class="dash-grid">
+  <div class="panel span-2">
+    <div class="panel-hdr"><span class="panel-title">🔴 Threat Indicators</span></div>
+    <table class="table">
+      <thead><tr><th>Indicator</th><th>Type</th><th>Severity</th><th>First Seen</th><th>Count</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="threatBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Attack Vectors</span></div>
+    <div style="padding:1rem"><canvas id="threatChart" height="200"></canvas></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+async function loadThreats(){
+  const data=await API.get('/threats');
+  if(!data)return;
+  const sB=s=>({'active':'<span class="badge badge-danger">ACTIVE</span>','reviewing':'<span class="badge badge-warn">REVIEWING</span>','resolved':'<span class="badge badge-ok">RESOLVED</span>'}[s]||s);
+  document.getElementById('threatBody').innerHTML=data.map(t=>`
+    <tr>
+      <td class="mono text-danger">${esc(t.indicator)}</td><td>${esc(t.type)}</td>
+      <td>${riskBadge(t.severity)}</td><td class="mono small text-dim">${t.first}</td>
+      <td class="mono">${t.count}</td><td>${sB(t.status)}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditThreat(${t.id})">Edit</button>
+        ${t.status!=='resolved'?`<button class="action-btn" onclick="resolveThreat(${t.id})">Resolve</button>`:''}
+        <button class="action-btn danger" onclick="confirmDeleteThreat(${t.id},'${esc(t.indicator)}')">Delete</button>
+      </div></td>
+    </tr>`).join('');
+  renderThreatChart(data);
+}
+
+function _threatForm(title,vals,fn){
+  FORM.open(title,`
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field col-span-2"><label>Indicator <span class="req">*</span></label>
+        <input class="field-input" id="ft-indicator" data-required value="${esc(vals.indicator)||''}" placeholder="IP, domain, username…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Type <span class="req">*</span></label>
+        <input class="field-input" id="ft-type" data-required value="${esc(vals.type)||''}" placeholder="Brute Force IP"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Severity <span class="req">*</span></label>
+        <select class="field-select" id="ft-sev">
+          <option value="critical" ${vals.severity==='critical'?'selected':''}>Critical</option>
+          <option value="high" ${vals.severity==='high'?'selected':''}>High</option>
+          <option value="medium" ${vals.severity==='medium'?'selected':''}>Medium</option>
+          <option value="low" ${vals.severity==='low'?'selected':''}>Low</option>
+        </select></div>
+      <div class="field"><label>Hit Count</label>
+        <input class="field-input" id="ft-count" type="number" min="1" value="${vals.count||1}"/></div>
+      <div class="field"><label>Status</label>
+        <select class="field-select" id="ft-status">
+          <option value="active" ${vals.status==='active'?'selected':''}>Active</option>
+          <option value="reviewing" ${vals.status==='reviewing'?'selected':''}>Reviewing</option>
+          <option value="resolved" ${vals.status==='resolved'?'selected':''}>Resolved</option>
+        </select></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`);
+}
+
+function openCreateThreat(){ _threatForm('Add Threat Indicator',{},'submitSaveThreat(null)'); }
+async function openEditThreat(tid){
+  const threats=await API.get('/threats');
+  const t=threats?.find(x=>x.id===tid); if(!t)return;
+  _threatForm('Edit Indicator',t,`submitSaveThreat(${tid})`);
+}
+async function submitSaveThreat(tid){
+  if(!FORM.validate())return;
+  const p={indicator:document.getElementById('ft-indicator').value.trim(),type:document.getElementById('ft-type').value.trim(),
+    severity:document.getElementById('ft-sev').value,count:parseInt(document.getElementById('ft-count').value)||1,
+    status:document.getElementById('ft-status').value};
+  const res=tid?await API._req('PUT',`/threats/${tid}`,p):await API.post('/threats',p);
+  if(!res||res.error){FORM.msg('error',res?.error||'Failed');return;}
+  FORM.close(); showToast('✓ Threat saved','ok'); loadThreats();
+}
+async function resolveThreat(tid){
+  await API.patch('/threats/'+tid,{status:'resolved'});
+  showToast('Threat resolved','ok'); loadThreats();
+}
+function confirmDeleteThreat(tid,ind){
+  FORM.confirm('Delete Threat Indicator',ind,async()=>{
+    await API.del('/threats/'+tid); showToast('Deleted','ok'); loadThreats();
+  });
+}
+loadThreats();
+</script>
+{% endblock %}

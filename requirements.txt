@@ -1,0 +1,8 @@
+# Required — the only package you need to install
+flask>=3.0.0
+
+# Optional — for real Active Directory connection
+# ldap3>=2.9.1
+
+# Optional — load settings from .env file
+# python-dotenv>=1.0.0

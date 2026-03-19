@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Sessions — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Session Monitor{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Session Monitor</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="loadSessions()">↺ Refresh</button>
+    <button class="btn btn-ghost" onclick="exportTableCSV('sessBody','sessions.csv')">⬇ CSV</button>
+    <button class="btn btn-danger" onclick="terminateAllExternal()">⚠ Terminate External</button>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="sessSearch" placeholder="Search user, host, IP…" oninput="loadSessions()"/>
+  </div>
+  <select class="select" id="sessStatusFilter" onchange="loadSessions()">
+    <option value="">All Sessions</option>
+    <option value="active">Active</option><option value="expired">Expired</option>
+    <option value="blocked">Blocked</option><option value="terminated">Terminated</option>
+  </select>
+  <span class="small text-dim" id="sessRefreshLabel" style="margin-left:.5rem"></span>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Username</th><th>Host</th><th>Source IP</th><th>Login Time</th><th>Last Seen</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="sessBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let SESS_CACHE = [];
+let refreshInterval;
+const sessStatusBadge = s => ({'active':'<span class="badge badge-ok">Active</span>','expired':'<span class="badge badge-dim">Expired</span>','blocked':'<span class="badge badge-danger">Blocked</span>','terminated':'<span class="badge badge-warn">Terminated</span>'}[s]||`<span class="badge badge-dim">${s}</span>`);
+const isExternal = ip => ip && !ip.startsWith('10.') && !ip.startsWith('192.168') && !ip.startsWith('172.') && ip!=='127.0.0.1';
+
+async function loadSessions() {
+  const q=document.getElementById('sessSearch').value, st=document.getElementById('sessStatusFilter').value;
+  const data = await API.get(`/sessions?q=${q}&status=${st}`);
+  if (!data||data.error) return;
+  SESS_CACHE = data;
+  document.getElementById('sessBody').innerHTML = data.length ? data.map(s => `
+    <tr${isExternal(s.ip)?' style="background:rgba(248,113,113,.04)"':''}>
+      <td class="mono text-info">${esc(s.username)}</td>
+      <td>${esc(s.host)}</td>
+      <td class="mono small ${isExternal(s.ip)?'text-danger':''}" style="font-size:.68rem">
+        ${esc(s.ip)} ${isExternal(s.ip)?'<span title="External IP">⚠</span>':''}
+      </td>
+      <td class="mono small text-dim">${s.login_time}</td>
+      <td class="mono small text-dim">${s.last_seen}</td>
+      <td class="mono">${s.duration}</td>
+      <td>${sessStatusBadge(s.status)}</td>
+      <td>${s.status==='active'?`<button class="action-btn danger" onclick="terminateSession(${s.id},'${esc(s.username)}')">Terminate</button>`:'—'}</td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty-state">No sessions found.</td></tr>';
+  const active = data.filter(s=>s.status==='active').length;
+  const external = data.filter(s=>s.status==='active'&&isExternal(s.ip)).length;
+  document.getElementById('sessRefreshLabel').textContent = `${active} active · ${external} external · auto-refresh 30s`;
+}
+
+async function terminateSession(id, username) {
+  FORM.confirm('Terminate Session', username, async()=>{
+    const res = await API.post(`/sessions/${id}/terminate`, {});
+    if (res?.error) return;
+    showToast(`✓ Session terminated: ${username}`,'ok'); loadSessions();
+  });
+}
+
+async function terminateAllExternal() {
+  const ext = SESS_CACHE.filter(s=>s.status==='active'&&isExternal(s.ip));
+  if (!ext.length) { showToast('No active external sessions','warn'); return; }
+  FORM.confirm(`Terminate ${ext.length} external sessions`, `${ext.length} sessions from external IPs`, async()=>{
+    for (const s of ext) await API.post(`/sessions/${s.id}/terminate`, {});
+    showToast(`✓ ${ext.length} sessions terminated`,'ok'); loadSessions();
+  });
+}
+
+loadSessions();
+refreshInterval = setInterval(loadSessions, 30000);
+</script>
+{% endblock %}

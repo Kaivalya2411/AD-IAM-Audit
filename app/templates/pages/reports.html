@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Reports — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Report Generator{% endblock %}
+{% block content %}
+<div class="page-header"><h1 class="page-title">Report Generator</h1></div>
+<div class="reports-grid">
+  {% set reports = [
+    ('stale',      '🗂',  'danger', 'Stale Accounts',   'Accounts inactive 90+ days'),
+    ('privileged', '🔐',  'warn',   'Privilege Audit',   'Admin & elevated access review'),
+    ('threats',    '🛡',  'danger', 'Threat Report',     'Suspicious logins & indicators'),
+    ('compliance', '✅',  'ok',     'Compliance Summary','Policy pass/fail breakdown'),
+    ('mfa',        '🔑',  'warn',   'MFA Coverage',      'Users without MFA enabled'),
+    ('full',       '📋',  'info',   'Full IAM Audit',    'Complete security posture'),
+  ] %}
+  {% for type, icon, cls, name, desc in reports %}
+  <div class="report-card">
+    <div class="report-accent {{ cls }}"></div>
+    <div class="report-icon">{{ icon }}</div>
+    <div class="report-name">{{ name }}</div>
+    <div class="report-desc">{{ desc }}</div>
+    <div class="report-btns">
+      <button class="btn btn-sm btn-ghost" onclick="downloadReport('{{ type }}','csv')">CSV</button>
+      <button class="btn btn-sm btn-primary" onclick="previewReport('{{ type }}')">Preview</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel" id="reportPanel" style="display:none;margin-top:1rem">
+  <div class="panel-hdr">
+    <span class="panel-title" id="reportTitle"></span>
+    <div class="panel-actions">
+      <button class="btn btn-sm btn-ghost" id="reportCsvBtn">⬇ CSV</button>
+      <button class="btn btn-sm btn-primary" onclick="printReport()">⬇ PDF</button>
+    </div>
+  </div>
+  <div id="reportContent"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentReportData = null;
+
+async function previewReport(type) {
+  const data = await API.get('/report/' + type);
+  if (!data || !data.data.length) return showToast('No data for this report', 'warn');
+  currentReportData = data;
+  const keys = Object.keys(data.data[0]);
+  document.getElementById('reportTitle').textContent = type.toUpperCase() + ' Report — ' + data.count + ' records — ' + data.generated;
+  document.getElementById('reportCsvBtn').onclick = () => downloadReport(type, 'csv');
+  document.getElementById('reportContent').innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="table">
+        <thead><tr>${keys.map(k=>`<th>${k.replace(/_/g,' ').toUpperCase()}</th>`).join('')}</tr></thead>
+        <tbody>${data.data.map(r=>`<tr>${keys.map(k=>`<td>${r[k]??'—'}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('reportPanel').style.display = 'block';
+  document.getElementById('reportPanel').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function downloadReport(type, format) {
+  const data = await API.get('/report/' + type);
+  if (!data || !data.data.length) return showToast('No data', 'warn');
+  if (format === 'csv') {
+    const keys = Object.keys(data.data[0]);
+    const csv  = [keys.join(','), ...data.data.map(r=>keys.map(k=>`"${r[k]??''}"`).join(','))].join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a    = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:type+'_report.csv'});
+    a.click(); URL.revokeObjectURL(a.href);
+    showToast('CSV downloaded', 'ok');
+  }
+}
+
+function printReport() {
+  if (!currentReportData) return;
+  const keys = Object.keys(currentReportData.data[0]);
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Report</title><style>body{font-family:monospace;font-size:11px;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 8px;text-align:left}th{background:#eee}</style></head><body>
+    <h2>${document.getElementById('reportTitle').textContent}</h2>
+    <table><thead><tr>${keys.map(k=>`<th>${k}</th>`).join('')}</tr></thead>
+    <tbody>${currentReportData.data.map(r=>`<tr>${keys.map(k=>`<td>${r[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table>
+  </body></html>`);
+  w.document.close(); setTimeout(()=>w.print(), 300);
+}
+</script>
+{% endblock %}

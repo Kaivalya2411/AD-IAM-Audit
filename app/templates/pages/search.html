@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Search — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Search Results{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Search Results</h1>
+</div>
+
+<div class="toolbar" style="margin-bottom:1.25rem">
+  <div class="search-wrap" style="flex:1;max-width:480px">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="globalSearchInput" placeholder="Search users, groups, assets, alerts…" oninput="runSearch()"/>
+  </div>
+</div>
+
+<div id="searchState" class="empty-state" style="padding:2rem">
+  Type to search across all entities…
+</div>
+
+<div id="searchResults" style="display:none">
+  <!-- Users -->
+  <div id="sec-users" style="display:none;margin-bottom:1.25rem">
+    <div class="panel-hdr" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
+      <span class="panel-title">👥 Users</span>
+      <span class="badge badge-dim" id="cnt-users">0</span>
+    </div>
+    <div class="panel" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+      <table class="table">
+        <thead><tr><th>Username</th><th>Name</th><th>Dept</th><th>Status</th><th>Risk</th></tr></thead>
+        <tbody id="res-users"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Groups -->
+  <div id="sec-groups" style="display:none;margin-bottom:1.25rem">
+    <div class="panel-hdr" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
+      <span class="panel-title">📁 Groups</span>
+      <span class="badge badge-dim" id="cnt-groups">0</span>
+    </div>
+    <div class="panel" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+      <table class="table">
+        <thead><tr><th>Group Name</th><th>Type</th><th>Privileged</th></tr></thead>
+        <tbody id="res-groups"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Assets -->
+  <div id="sec-assets" style="display:none;margin-bottom:1.25rem">
+    <div class="panel-hdr" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
+      <span class="panel-title">🖥 Assets</span>
+      <span class="badge badge-dim" id="cnt-assets">0</span>
+    </div>
+    <div class="panel" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+      <table class="table">
+        <thead><tr><th>Hostname</th><th>IP</th><th>Type</th><th>Status</th><th>Risk</th></tr></thead>
+        <tbody id="res-assets"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SOC Alerts -->
+  <div id="sec-alerts" style="display:none;margin-bottom:1.25rem">
+    <div class="panel-hdr" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
+      <span class="panel-title">🚨 SOC Alerts</span>
+      <span class="badge badge-dim" id="cnt-alerts">0</span>
+    </div>
+    <div class="panel" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+      <table class="table">
+        <thead><tr><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+        <tbody id="res-alerts"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Audit Events -->
+  <div id="sec-events" style="display:none;margin-bottom:1.25rem">
+    <div class="panel-hdr" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
+      <span class="panel-title">📋 Audit Events</span>
+      <span class="badge badge-dim" id="cnt-events">0</span>
+    </div>
+    <div class="panel" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+      <table class="table">
+        <thead><tr><th>Event ID</th><th>Type</th><th>User</th><th>Target</th><th>Time</th><th>Result</th></tr></thead>
+        <tbody id="res-events"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="noResults" style="display:none" class="empty-state">No results found for your search.</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _searchTimer = null;
+
+// Pre-fill from URL param or global search
+window.addEventListener('DOMContentLoaded', () => {
+  const q = new URLSearchParams(location.search).get('q') || '';
+  const input = document.getElementById('globalSearchInput');
+  input.value = q;
+  if (q) runSearch();
+  input.focus();
+});
+
+function runSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(doSearch, 280);
+}
+
+async function doSearch() {
+  const q = document.getElementById('globalSearchInput').value.trim();
+  const state = document.getElementById('searchState');
+  const results = document.getElementById('searchResults');
+
+  if (q.length < 2) {
+    state.style.display = '';
+    state.textContent = 'Type at least 2 characters to search…';
+    results.style.display = 'none';
+    return;
+  }
+
+  // Update URL without reload
+  history.replaceState({}, '', `/search?q=${encodeURIComponent(q)}`);
+
+  state.style.display = '';
+  state.innerHTML = '<span class="skeleton" style="width:200px;height:14px;display:inline-block"></span>';
+
+  const data = await API.get(`/search?q=${encodeURIComponent(q)}`);
+  if (!data) return;
+
+  state.style.display = 'none';
+  results.style.display = '';
+
+  let totalResults = 0;
+
+  // Users
+  const users = data.users || [];
+  totalResults += users.length;
+  document.getElementById('sec-users').style.display = users.length ? '' : 'none';
+  document.getElementById('cnt-users').textContent = users.length;
+  document.getElementById('res-users').innerHTML = users.map(u => `
+    <tr onclick="location.href='/users'" style="cursor:pointer">
+      <td class="mono text-info">${esc(u.username)}</td>
+      <td>${esc(u.name)}</td>
+      <td>${esc(u.dept)||'—'}</td>
+      <td>${statusBadge(u.status)}</td>
+      <td>${riskBadge(u.risk)}</td>
+    </tr>`).join('');
+
+  // Groups
+  const groups = data.groups || [];
+  totalResults += groups.length;
+  document.getElementById('sec-groups').style.display = groups.length ? '' : 'none';
+  document.getElementById('cnt-groups').textContent = groups.length;
+  document.getElementById('res-groups').innerHTML = groups.map(g => `
+    <tr onclick="location.href='/groups'" style="cursor:pointer">
+      <td class="mono text-info">${esc(g.name)}</td>
+      <td>${esc(g.type)}</td>
+      <td>${g.privileged ? '<span class="badge badge-danger">YES</span>' : '<span class="badge badge-dim">No</span>'}</td>
+    </tr>`).join('');
+
+  // Assets
+  const assets = data.assets || [];
+  totalResults += assets.length;
+  document.getElementById('sec-assets').style.display = assets.length ? '' : 'none';
+  document.getElementById('cnt-assets').textContent = assets.length;
+  document.getElementById('res-assets').innerHTML = assets.map(a => `
+    <tr onclick="location.href='/assets'" style="cursor:pointer">
+      <td class="mono text-info">${esc(a.hostname)}</td>
+      <td class="mono small text-dim">${esc(a.ip)||'—'}</td>
+      <td>${esc(a.type)}</td>
+      <td>${a.status==='active'?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-warn">Stale</span>'}</td>
+      <td>${riskBadge(a.risk)}</td>
+    </tr>`).join('');
+
+  // Alerts
+  const alerts = data.alerts || [];
+  totalResults += alerts.length;
+  document.getElementById('sec-alerts').style.display = alerts.length ? '' : 'none';
+  document.getElementById('cnt-alerts').textContent = alerts.length;
+  document.getElementById('res-alerts').innerHTML = alerts.map(a => `
+    <tr onclick="location.href='/soc-alerts'" style="cursor:pointer">
+      <td>${esc(a.title)}</td>
+      <td>${riskBadge(a.severity)}</td>
+      <td><span class="badge ${a.status==='open'?'badge-danger':'badge-ok'}">${esc(a.status)}</span></td>
+    </tr>`).join('');
+
+  // Events
+  const events = data.events || [];
+  totalResults += events.length;
+  document.getElementById('sec-events').style.display = events.length ? '' : 'none';
+  document.getElementById('cnt-events').textContent = events.length;
+  document.getElementById('res-events').innerHTML = events.map(e => `
+    <tr onclick="location.href='/audit'" style="cursor:pointer">
+      <td class="mono small text-dim">${esc(e.event_id)}</td>
+      <td>${typeBadge(e.type)}</td>
+      <td class="mono text-info">${esc(e.user)}</td>
+      <td>${esc(e.target)}</td>
+      <td class="mono small text-dim">${esc(e.time)}</td>
+      <td>${resultBadge(e.result)}</td>
+    </tr>`).join('');
+
+  document.getElementById('noResults').style.display = totalResults === 0 ? '' : 'none';
+}
+
+// Also wire up global search bar to redirect here
+document.addEventListener('DOMContentLoaded', () => {
+  const globalInput = document.getElementById('globalSearch');
+  if (globalInput) {
+    globalInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && globalInput.value.trim()) {
+        location.href = `/search?q=${encodeURIComponent(globalInput.value.trim())}`;
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

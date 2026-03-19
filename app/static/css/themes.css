@@ -1,0 +1,276 @@
+/* ─────────────────────────────────────────────────────────
+   themes.css  —  Multi-theme system
+   Applied via:  document.documentElement.setAttribute('data-theme', 'X')
+   Stored in:    localStorage('adaudit_theme')
+   ───────────────────────────────────────────────────────── */
+
+/* ══════════════════════════════════════════════════════════
+   DEFAULT (Ocean Dark) — same as original, no override needed
+   ══════════════════════════════════════════════════════════ */
+[data-theme="ocean"] {
+  --bg0:        #080b0f;
+  --bg1:        #0d1117;
+  --bg2:        #131920;
+  --bg3:        #18202a;
+  --bg4:        #1e2836;
+  --border:     #1e2d3d;
+  --border2:    #243447;
+  --text0:      #e2ecf6;
+  --text1:      #a8bdd0;
+  --text2:      #607080;
+  --accent:     #38bdf8;
+  --accent-dim: rgba(56,189,248,0.12);
+  --cyan:       #38bdf8;
+  --cyan-dim:   rgba(56,189,248,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   MIDNIGHT PURPLE — deep dark with purple accent
+   ══════════════════════════════════════════════════════════ */
+[data-theme="midnight"] {
+  --bg0:        #09080f;
+  --bg1:        #100e1a;
+  --bg2:        #161322;
+  --bg3:        #1c192c;
+  --bg4:        #221f36;
+  --border:     #2a2540;
+  --border2:    #332e50;
+  --text0:      #e8e4f6;
+  --text1:      #b0a8cc;
+  --text2:      #6b6088;
+  --accent:     #a78bfa;
+  --accent-dim: rgba(167,139,250,0.13);
+  --cyan:       #a78bfa;
+  --cyan-dim:   rgba(167,139,250,0.13);
+  --green:      #6ee7b7;
+  --green-dim:  rgba(110,231,183,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   FOREST — dark green, earthy feel
+   ══════════════════════════════════════════════════════════ */
+[data-theme="forest"] {
+  --bg0:        #080f0b;
+  --bg1:        #0d1610;
+  --bg2:        #111e15;
+  --bg3:        #16261a;
+  --bg4:        #1b2e1f;
+  --border:     #1e3524;
+  --border2:    #24402b;
+  --text0:      #e2f0e6;
+  --text1:      #a8c8b0;
+  --text2:      #527060;
+  --accent:     #4ade80;
+  --accent-dim: rgba(74,222,128,0.13);
+  --cyan:       #4ade80;
+  --cyan-dim:   rgba(74,222,128,0.13);
+  --green:      #4ade80;
+  --green-dim:  rgba(74,222,128,0.12);
+  --red:        #f87171;
+  --red-dim:    rgba(248,113,113,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SUNSET — warm amber/orange dark theme
+   ══════════════════════════════════════════════════════════ */
+[data-theme="sunset"] {
+  --bg0:        #0f0a06;
+  --bg1:        #18100a;
+  --bg2:        #21160d;
+  --bg3:        #2a1c11;
+  --bg4:        #332215;
+  --border:     #3d2a18;
+  --border2:    #4a331e;
+  --text0:      #f5e8d8;
+  --text1:      #c8a882;
+  --text2:      #7a6048;
+  --accent:     #fb923c;
+  --accent-dim: rgba(251,146,60,0.13);
+  --cyan:       #fb923c;
+  --cyan-dim:   rgba(251,146,60,0.13);
+  --green:      #86efac;
+  --green-dim:  rgba(134,239,172,0.12);
+  --amber:      #fbbf24;
+  --amber-dim:  rgba(251,191,36,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   ROSE — dark theme with pink/rose accent
+   ══════════════════════════════════════════════════════════ */
+[data-theme="rose"] {
+  --bg0:        #0f080b;
+  --bg1:        #180d11;
+  --bg2:        #201217;
+  --bg3:        #28171d;
+  --bg4:        #301c23;
+  --border:     #3d2230;
+  --border2:    #4a2a3a;
+  --text0:      #f5e4eb;
+  --text1:      #c8a0b4;
+  --text2:      #7a5068;
+  --accent:     #f472b6;
+  --accent-dim: rgba(244,114,182,0.13);
+  --cyan:       #f472b6;
+  --cyan-dim:   rgba(244,114,182,0.13);
+  --green:      #6ee7b7;
+  --green-dim:  rgba(110,231,183,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   LIGHT — clean white Notion-style
+   ══════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg0:        #f0f2f5;
+  --bg1:        #ffffff;
+  --bg2:        #ffffff;
+  --bg3:        #f8f9fa;
+  --bg4:        #f0f2f5;
+  --border:     #e2e8f0;
+  --border2:    #cbd5e1;
+  --text0:      #0f172a;
+  --text1:      #334155;
+  --text2:      #94a3b8;
+  --accent:     #6366f1;
+  --accent-dim: rgba(99,102,241,0.10);
+  --cyan:       #6366f1;
+  --cyan-dim:   rgba(99,102,241,0.10);
+  --green:      #16a34a;
+  --green-dim:  rgba(22,163,74,0.10);
+  --red:        #dc2626;
+  --red-dim:    rgba(220,38,38,0.10);
+  --amber:      #d97706;
+  --amber-dim:  rgba(217,119,6,0.10);
+  --purple:     #7c3aed;
+  --purple-dim: rgba(124,58,237,0.10);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:  0 4px 16px rgba(0,0,0,0.10);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.12);
+}
+
+/* Light theme specific overrides */
+[data-theme="light"] body {
+  background: var(--bg0);
+  -webkit-font-smoothing: auto;
+}
+[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right-color: #e2e8f0;
+  box-shadow: 1px 0 0 #e2e8f0;
+}
+[data-theme="light"] .topbar {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+[data-theme="light"] .panel {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px #e2e8f0;
+}
+[data-theme="light"] .modal {
+  background: #ffffff;
+}
+[data-theme="light"] .btn-primary { color: #ffffff; }
+[data-theme="light"] .nav-link:hover { background: #f1f5f9; }
+[data-theme="light"] .nav-link.active { background: rgba(99,102,241,0.08); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+[data-theme="light"] ::selection { background: rgba(99,102,241,0.15); color: #6366f1; }
+
+/* ══════════════════════════════════════════════════════════
+   SLATE — neutral grey-blue dark
+   ══════════════════════════════════════════════════════════ */
+[data-theme="slate"] {
+  --bg0:        #0a0d12;
+  --bg1:        #111520;
+  --bg2:        #171c2a;
+  --bg3:        #1d2333;
+  --bg4:        #232b3e;
+  --border:     #2a3449;
+  --border2:    #303d56;
+  --text0:      #e4eaf5;
+  --text1:      #a4b0c8;
+  --text2:      #5c6b84;
+  --accent:     #60a5fa;
+  --accent-dim: rgba(96,165,250,0.12);
+  --cyan:       #60a5fa;
+  --cyan-dim:   rgba(96,165,250,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   HIGH CONTRAST — accessibility-focused dark
+   ══════════════════════════════════════════════════════════ */
+[data-theme="contrast"] {
+  --bg0:        #000000;
+  --bg1:        #0a0a0a;
+  --bg2:        #111111;
+  --bg3:        #1a1a1a;
+  --bg4:        #222222;
+  --border:     #333333;
+  --border2:    #444444;
+  --text0:      #ffffff;
+  --text1:      #eeeeee;
+  --text2:      #999999;
+  --accent:     #00e5ff;
+  --accent-dim: rgba(0,229,255,0.12);
+  --cyan:       #00e5ff;
+  --cyan-dim:   rgba(0,229,255,0.12);
+  --green:      #00e676;
+  --green-dim:  rgba(0,230,118,0.12);
+  --red:        #ff1744;
+  --red-dim:    rgba(255,23,68,0.12);
+  --amber:      #ffea00;
+  --amber-dim:  rgba(255,234,0,0.12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SHARED: accent-based component overrides
+   Applied across all themes so --accent drives everything
+   ══════════════════════════════════════════════════════════ */
+[data-theme] .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+[data-theme] .btn-primary:hover {
+  filter: brightness(1.1);
+}
+[data-theme] .nav-link.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+[data-theme] .field-input:focus,
+[data-theme] .field-select:focus,
+[data-theme] .field-textarea:focus,
+[data-theme] .tk-textarea:focus,
+[data-theme] .tk-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+[data-theme] .search-wrap:focus-within { border-color: var(--accent); }
+[data-theme] .select:focus { border-color: var(--accent); }
+[data-theme] .toggle input:checked + span { background: var(--accent-dim); border-color: var(--accent); }
+[data-theme] .toggle input:checked + span::before { background: var(--accent); }
+[data-theme] .badge-info { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-dim); }
+[data-theme] .text-info  { color: var(--accent); }
+[data-theme] .pager-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+[data-theme] .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+[data-theme] .finding.info { border-left-color: var(--accent); }
+[data-theme] .finding.info .finding-dot { background: var(--accent); }
+[data-theme] .report-accent.info { background: var(--accent); }
+[data-theme] .kpi-card.info::after { background: var(--accent); }
+[data-theme] .tour-card-accent { background: linear-gradient(90deg, var(--accent), var(--purple)); }
+[data-theme] #tourHighlight { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim), 0 0 20px var(--accent-dim); }
+[data-theme] .tour-btn-next { background: var(--accent); border-color: var(--accent); }
+[data-theme] .tour-step-badge { color: var(--accent); background: var(--accent-dim); border-color: var(--accent-dim); }
+[data-theme] .tour-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+[data-theme] .tk-tab.active { color: var(--accent); background: var(--accent-dim); border-color: var(--accent-dim); }
+[data-theme] .hash-val, [data-theme] .color-conv-val { color: var(--accent); }
+[data-theme] .tour-card-accent,
+[data-theme] .tour-btn-finish { background: linear-gradient(135deg, var(--accent), var(--purple)); }
+
+/* Transition all background/color changes smoothly on theme switch */
+*, *::before, *::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+/* But NOT transforms/opacity/layout — would slow animations */
+.btn, button, .nav-link, .badge, .tk-tab {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}

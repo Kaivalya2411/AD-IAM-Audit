@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Policies — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Security Policies{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Security Policies</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('policyBody','policies.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreatePolicy()">+ Add Policy</button>
+  </div>
+</div>
+<div class="dash-grid">
+  <div class="panel span-2">
+    <div class="panel-hdr"><span class="panel-title">Policy Compliance Status</span></div>
+    <table class="table">
+      <thead><tr><th>Policy</th><th>Category</th><th>Scope</th><th>Pass</th><th>Fail</th><th>Compliance %</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="policyBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Compliance Radar</span></div>
+    <div style="padding:1rem"><canvas id="complianceChart" height="200"></canvas></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+let POLICY_CACHE = [];
+
+async function loadPolicies() {
+  const data = await API.get('/policies');
+  if (!data||data.error) return;
+  POLICY_CACHE = data;
+  document.getElementById('policyBody').innerHTML = data.map(p => `
+    <tr>
+      <td><b>${p.name}</b></td>
+      <td><span class="badge badge-dim">${p.category}</span></td>
+      <td class="text-dim small">${p.scope}</td>
+      <td class="mono text-ok">${p.pass}</td>
+      <td class="mono text-danger">${p.fail}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div class="progress-bar-wrap" style="width:70px"><div class="progress-bar" style="width:${p.pct}%;background:${p.pct>=80?'var(--green)':p.pct>=50?'var(--amber)':'var(--red)'}"></div></div>
+          <span class="mono small">${p.pct}%</span>
+        </div>
+      </td>
+      <td>${p.pct>=80?'<span class="badge badge-ok">PASS</span>':p.pct>=50?'<span class="badge badge-warn">PARTIAL</span>':'<span class="badge badge-danger">FAIL</span>'}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditPolicy(${p.id})">Edit</button>
+        <button class="action-btn danger" onclick="confirmDeletePolicy(${p.id},'${p.name.replace(/'/g,'')}')">Delete</button>
+      </div></td>
+    </tr>`).join('');
+  renderComplianceChart(data);
+}
+
+function _policyForm(title, v, fn) {
+  FORM.open(title, `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field col-span-2"><label>Policy Name <span class="req">*</span></label>
+        <input class="field-input" id="po-name" data-required value="${v.name||''}" placeholder="Password Complexity Policy"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Category <span class="req">*</span></label>
+        <input class="field-input" id="po-cat" data-required value="${v.category||''}" placeholder="Authentication, Access…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Scope</label>
+        <input class="field-input" id="po-scope" value="${v.scope||'All Users'}" placeholder="All Users, Admins…"/></div>
+      <div class="field"><label>Pass Count</label>
+        <input class="field-input" id="po-pass" type="number" min="0" value="${v.pass||v.pass_count||0}"/></div>
+      <div class="field"><label>Fail Count</label>
+        <input class="field-input" id="po-fail" type="number" min="0" value="${v.fail||v.fail_count||0}"/></div>
+      <div class="field col-span-2"><label>Compliance % <span class="field-hint">(0–100, or leave 0 to auto-calculate from pass/fail)</span></label>
+        <input class="field-input" id="po-pct" type="number" min="0" max="100" value="${v.pct||0}"/>
+        <div class="field-hint">If 0, will be calculated as pass/(pass+fail)*100</div></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`, {size:'modal-lg'});
+}
+
+function openCreatePolicy() { _policyForm('Add Security Policy', {}, 'submitSavePolicy(null)'); }
+function openEditPolicy(id) {
+  const p = POLICY_CACHE.find(x=>x.id===id); if(!p) return;
+  _policyForm('Edit Policy: '+p.name, p, `submitSavePolicy(${id})`);
+}
+async function submitSavePolicy(id) {
+  if (!FORM.validate()) return;
+  const pass=parseInt(document.getElementById('po-pass').value)||0;
+  const fail=parseInt(document.getElementById('po-fail').value)||0;
+  let pct=parseInt(document.getElementById('po-pct').value)||0;
+  if (pct===0 && pass+fail>0) pct = Math.round(pass/(pass+fail)*100);
+  const p = {name:document.getElementById('po-name').value.trim(), category:document.getElementById('po-cat').value.trim(),
+    scope:document.getElementById('po-scope').value.trim(), pass, fail, pct};
+  const res = id ? await API._req('PUT',`/policies/${id}`,p) : await API.post('/policies',p);
+  if (res?.error) { FORM.msg('error', res.error); return; }
+  FORM.close(); showToast('✓ Policy saved','ok'); loadPolicies();
+}
+function confirmDeletePolicy(id, name) {
+  FORM.confirm('Delete Policy', name, async()=>{ await API.del('/policies/'+id); showToast('Deleted','ok'); loadPolicies(); });
+}
+loadPolicies();
+</script>
+{% endblock %}

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}SOC Alerts — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}SOC Alert Queue{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">SOC Alert Queue</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('alertBody','soc_alerts.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateAlert()">+ Create Alert</button>
+  </div>
+</div>
+<div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="kpi-card danger"><div class="kpi-icon">🚨</div><div class="kpi-body"><div class="kpi-value" id="k-open">—</div><div class="kpi-label">Open</div></div></div>
+  <div class="kpi-card danger"><div class="kpi-icon">🔴</div><div class="kpi-body"><div class="kpi-value" id="k-crit">—</div><div class="kpi-label">Critical</div></div></div>
+  <div class="kpi-card warn"><div class="kpi-icon">🟡</div><div class="kpi-body"><div class="kpi-value" id="k-high">—</div><div class="kpi-label">High</div></div></div>
+  <div class="kpi-card ok"><div class="kpi-icon">✓</div><div class="kpi-body"><div class="kpi-value" id="k-resolved">—</div><div class="kpi-label">Resolved</div></div></div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="alertSearch" placeholder="Search…" oninput="loadAlerts()"/>
+  </div>
+  <select class="select" id="alertSevFilter" onchange="loadAlerts()">
+    <option value="">All Severity</option><option value="critical">Critical</option>
+    <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+  </select>
+  <select class="select" id="alertStatusFilter" onchange="loadAlerts()">
+    <option value="">All Status</option><option value="open">Open</option>
+    <option value="investigating">Investigating</option><option value="resolved">Resolved</option>
+  </select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Alert</th><th>Severity</th><th>Source</th><th>User</th><th>Assigned</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+    <tbody id="alertBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const sB2=s=>({'open':'<span class="badge badge-danger">Open</span>','investigating':'<span class="badge badge-warn">Investigating</span>','resolved':'<span class="badge badge-ok">Resolved</span>','closed':'<span class="badge badge-dim">Closed</span>'}[s]||`<span class="badge badge-dim">${s}</span>`);
+
+async function loadAlerts(){
+  const q=document.getElementById('alertSearch').value,sv=document.getElementById('alertSevFilter').value,st=document.getElementById('alertStatusFilter').value;
+  const[data,sum]=await Promise.all([API.get(`/soc-alerts?q=${q}&severity=${sv}&status=${st}`),API.get('/soc-alerts/summary')]);
+  if(sum){setText('k-open',sum.open);setText('k-crit',sum.critical);setText('k-high',sum.high);setText('k-resolved',sum.resolved);}
+  if(!data)return;
+  document.getElementById('alertBody').innerHTML=data.length?data.map(a=>`
+    <tr>
+      <td><b class="small">${esc(a.title)}</b><div class="small text-dim">${esc(a.description)||''}</div></td>
+      <td>${riskBadge(a.severity)}</td><td><span class="badge badge-dim">${a.source||'—'}</span></td>
+      <td class="mono small text-info">${esc(a.username)||'—'}</td>
+      <td class="small text-dim">${a.assigned_to||'Unassigned'}</td>
+      <td>${sB2(a.status)}</td><td class="mono small text-dim">${(a.created_at||'').slice(0,10)}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditAlert(${a.id})">Edit</button>
+        ${a.status==='open'?`<button class="action-btn" onclick="quickUpdate(${a.id},'investigating','admin')">Assign</button>`:''}
+        ${a.status!=='resolved'?`<button class="action-btn" onclick="quickUpdate(${a.id},'resolved',null)">Resolve</button>`:''}
+        <button class="action-btn danger" onclick="confirmDeleteAlert(${a.id},'${a.title.replace(/'/g,'')}')">Delete</button>
+      </div></td>
+    </tr>`).join(''):'<tr><td colspan="8" class="empty-state">No alerts.</td></tr>';
+}
+
+function _alertForm(title,vals,fn){
+  FORM.open(title,`
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field col-span-2"><label>Title <span class="req">*</span></label>
+        <input class="field-input" id="fa-title" data-required value="${esc(vals.title)||''}" placeholder="Alert title…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field col-span-2"><label>Description</label>
+        <textarea class="field-textarea" id="fa-desc">${esc(vals.description)||''}</textarea></div>
+      <div class="field"><label>Severity <span class="req">*</span></label>
+        <select class="field-select" id="fa-sev">
+          <option value="critical" ${vals.severity==='critical'?'selected':''}>Critical</option>
+          <option value="high" ${vals.severity==='high'?'selected':''}>High</option>
+          <option value="medium" ${vals.severity==='medium'?'selected':''}>Medium</option>
+          <option value="low" ${vals.severity==='low'?'selected':''}>Low</option>
+        </select></div>
+      <div class="field"><label>Status</label>
+        <select class="field-select" id="fa-status">
+          <option value="open" ${vals.status==='open'?'selected':''}>Open</option>
+          <option value="investigating" ${vals.status==='investigating'?'selected':''}>Investigating</option>
+          <option value="resolved" ${vals.status==='resolved'?'selected':''}>Resolved</option>
+        </select></div>
+      <div class="field"><label>Source</label>
+        <input class="field-input" id="fa-source" value="${vals.source||''}" placeholder="IDS, AD, Manual…"/></div>
+      <div class="field"><label>Assigned To</label>
+        <input class="field-input" id="fa-assigned" value="${vals.assigned_to||''}" placeholder="analyst name…"/></div>
+      <div class="field"><label>Related User</label>
+        <input class="field-input" id="fa-user" value="${esc(vals.username)||''}" placeholder="username"/></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`,{size:'modal-lg'});
+}
+
+function openCreateAlert(){ _alertForm('Create SOC Alert',{},'submitSaveAlert(null)'); }
+async function openEditAlert(sid){
+  const data=await API.get('/soc-alerts?status=');
+  const a=data?.find(x=>x.id===sid); if(!a)return;
+  _alertForm('Edit Alert',a,`submitSaveAlert(${sid})`);
+}
+async function submitSaveAlert(sid){
+  if(!FORM.validate())return;
+  const p={title:document.getElementById('fa-title').value.trim(),description:document.getElementById('fa-desc').value.trim(),
+    severity:document.getElementById('fa-sev').value,status:document.getElementById('fa-status').value,
+    source:document.getElementById('fa-source').value.trim(),assigned_to:document.getElementById('fa-assigned').value.trim(),
+    username:document.getElementById('fa-user').value.trim()};
+  const res=sid?await API._req('PUT',`/soc-alerts/${sid}`,p):await API.post('/soc-alerts',p);
+  if(!res||res.error){FORM.msg('error',res?.error||'Failed');return;}
+  FORM.close(); showToast('✓ Alert saved','ok'); loadAlerts();
+}
+async function quickUpdate(sid,status,assigned){
+  const b={status};if(assigned)b.assigned_to=assigned;
+  await API.patch('/soc-alerts/'+sid,b); showToast('Alert updated','ok'); loadAlerts();
+}
+function confirmDeleteAlert(sid,title){
+  FORM.confirm('Delete Alert',title,async()=>{await API.del('/soc-alerts/'+sid);showToast('Deleted','ok');loadAlerts();});
+}
+loadAlerts();
+</script>
+{% endblock %}

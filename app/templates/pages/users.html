@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Users — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}User Management{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">User Management</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('usersBody','users_export.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateUser()">+ Add User</button>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="userSearch" placeholder="Search users…" oninput="loadUsers()"/>
+  </div>
+  <select class="select" id="statusFilter" onchange="loadUsers()">
+    <option value="">All Status</option><option value="active">Active</option>
+    <option value="stale">Stale</option><option value="disabled">Disabled</option>
+  </select>
+  <select class="select" id="riskFilter" onchange="loadUsers()">
+    <option value="">All Risk</option><option value="critical">Critical</option>
+    <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+  </select>
+  <select class="select" id="deptFilter" onchange="loadUsers()"><option value="">All Departments</option></select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Username</th><th>Full Name</th><th>Dept</th><th>Email</th><th>Last Login</th><th>MFA</th><th>Status</th><th>Risk</th><th>Actions</th></tr></thead>
+    <tbody id="usersBody"></tbody>
+  </table>
+  <div class="table-footer" id="usersPager"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const ALL_GROUPS_LIST=['Domain Admins','IT Support','Finance Users','Schema Admins','Backup Operators','HR Department','Executive Team','Sales Team','Legal Dept'];
+let USERS_CACHE=[];
+
+async function loadUsers(page=1){
+  // Show skeleton while loading
+  const tbody = document.getElementById('usersBody');
+  if (tbody && !tbody.dataset.loaded) {
+    tbody.innerHTML = skeletonRows(9, 6);
+  }
+  const q=document.getElementById('userSearch').value,status=document.getElementById('statusFilter').value,
+    risk=document.getElementById('riskFilter').value,dept=document.getElementById('deptFilter').value;
+  const data=await API.get(`/users?q=${q}&status=${status}&risk=${risk}&dept=${dept}`);
+  if(!data)return; USERS_CACHE=data;
+  const ds=document.getElementById('deptFilter');
+  if(ds.options.length===1)[...new Set(data.map(u=>u.dept))].sort().forEach(d=>ds.add(new Option(d,d)));
+  const PS=12,start=(page-1)*PS,paged=data.slice(start,start+PS);
+  document.getElementById('usersBody').innerHTML=paged.length?paged.map(u=>`
+    <tr>
+      <td class="mono text-info">${esc(u.username)}</td><td><b>${esc(u.name)}</b></td>
+      <td>${esc(u.dept)||'—'}</td><td class="small text-dim">${esc(u.email)||'—'}</td>
+      <td class="mono small text-dim">${esc(u.last_login)||'—'} <span>(${daysSince(u.last_login)}d)</span></td>
+      <td>${u.mfa?'<span class="badge badge-ok">ON</span>':'<span class="badge badge-danger">OFF</span>'}</td>
+      <td>${statusBadge(u.status)}</td><td>${riskBadge(u.risk)}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="viewUser('${esc(u.username)}')">View</button>
+        <button class="action-btn" onclick="openEditUser(${u.id},'${esc(u.username)}')">Edit</button>
+        <button class="action-btn danger" onclick="confirmDeleteUser(${u.id},'${esc(u.username)}')">Delete</button>
+      </div></td>
+    </tr>`).join(''):'<tr><td colspan="9" class="empty-state">No users found.</td></tr>';
+  renderPager('usersPager',data.length,page,PS,p=>loadUsers(p));
+}
+
+async function viewUser(username){
+  const u=await API.get('/users/'+username);
+  if(!u)return;
+  showModal('User: '+u.name,`
+    <div class="detail-grid">
+      <div class="detail-item"><label>Username</label><span class="mono">${esc(u.username)}</span></div>
+      <div class="detail-item"><label>Full Name</label><span>${esc(u.name)}</span></div>
+      <div class="detail-item"><label>Department</label><span>${esc(u.dept)||'—'}</span></div>
+      <div class="detail-item"><label>Email</label><span class="mono small">${esc(u.email)||'—'}</span></div>
+      <div class="detail-item"><label>Last Login</label><span class="mono small">${esc(u.last_login)||'—'} (${daysSince(u.last_login)}d)</span></div>
+      <div class="detail-item"><label>MFA</label><span>${u.mfa?'<span class="badge badge-ok">On</span>':'<span class="badge badge-danger">Off</span>'}</span></div>
+      <div class="detail-item"><label>Status</label><span>${statusBadge(u.status)}</span></div>
+      <div class="detail-item"><label>Risk</label><span>${riskBadge(u.risk)}</span></div>
+    </div>
+    <div style="margin-top:1rem"><div class="modal-section-title">Groups</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem">${(u.groups||[]).map(g=>`<span class="badge badge-info">${g}</span>`).join('')||'—'}</div>
+    </div>
+    <div style="margin-top:1rem"><div class="modal-section-title">Recent Events</div>
+      ${(u.recent_events||[]).map(e=>`<div class="small text-dim" style="padding:.22rem 0;border-bottom:1px solid var(--border)">${e.timestamp||''} — ${esc(e.type)} → ${esc(e.target)}</div>`).join('')||'<span class="text-dim small">None</span>'}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-sm btn-ghost" onclick="closeModal()">Close</button>
+      <button class="btn btn-sm btn-primary" onclick="closeModal();openEditUser(${u.id},'${esc(u.username)}')">Edit</button>
+    </div>`);
+}
+
+function _userForm(title,vals,submitFn){
+  const today=new Date().toISOString().slice(0,10);
+  FORM.open(title,`
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field"><label>Username <span class="req">*</span></label>
+        <input class="field-input" id="fu-username" data-required value="${esc(vals.username)||''}" placeholder="jsmith"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Full Name <span class="req">*</span></label>
+        <input class="field-input" id="fu-name" data-required value="${esc(vals.name)||''}" placeholder="John Smith"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Department</label>
+        <input class="field-input" id="fu-dept" value="${esc(vals.dept)||''}" placeholder="IT"/></div>
+      <div class="field"><label>Email</label>
+        <input class="field-input" id="fu-email" type="email" value="${esc(vals.email)||''}" placeholder="jsmith@corp.local"/></div>
+      <div class="field"><label>Status</label>
+        <select class="field-select" id="fu-status">
+          <option value="active" ${vals.status==='active'?'selected':''}>Active</option>
+          <option value="stale" ${vals.status==='stale'?'selected':''}>Stale</option>
+          <option value="disabled" ${vals.status==='disabled'?'selected':''}>Disabled</option>
+        </select></div>
+      <div class="field"><label>Risk Level</label>
+        <select class="field-select" id="fu-risk">
+          <option value="low" ${vals.risk==='low'?'selected':''}>Low</option>
+          <option value="medium" ${vals.risk==='medium'?'selected':''}>Medium</option>
+          <option value="high" ${vals.risk==='high'?'selected':''}>High</option>
+          <option value="critical" ${vals.risk==='critical'?'selected':''}>Critical</option>
+        </select></div>
+      <div class="field col-span-2"><label>Group Memberships</label>
+        <div class="tag-input-wrap" id="fuGroupWrap">
+          <input class="tag-input" id="fuGroupInput" placeholder="Type group and press Enter…"/>
+        </div><div class="field-hint">Press Enter to add each group</div></div>
+      <div class="field"><label>Last Login</label>
+        <input class="field-input" id="fu-lastlogin" type="date" value="${esc(vals.last_login)||today}"/></div>
+      <div class="field"><label>MFA</label>
+        <div class="field-toggle-row"><span class="field-toggle-label">Multi-factor authentication</span>
+          <label class="toggle"><input type="checkbox" id="fu-mfa" ${vals.mfa?'checked':''}/><span></span></label>
+        </div></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${submitFn}">Save</button>
+    </div>`,{size:'modal-lg'});
+
+  setTimeout(()=>{
+    initTagInput('fuGroupWrap','fuGroupInput','');
+    const wrap=document.getElementById('fuGroupWrap');
+    (vals.groups||[]).forEach(g=>{if(g&&!wrap._tags.includes(g)){wrap._tags.push(g);}});
+    if(wrap._render) wrap._render();
+    initAutocomplete('fuGroupInput',ALL_GROUPS_LIST,val=>{
+      if(wrap._tags&&!wrap._tags.includes(val)){wrap._tags.push(val);wrap._render();}
+      document.getElementById('fuGroupInput').value='';
+    });
+  },60);
+}
+
+function openCreateUser(){ _userForm('Add New User',{},'submitSaveUser(null)'); }
+async function openEditUser(uid,username){
+  const full=await API.get('/users/'+(username||uid));
+  if(!full)return;
+  _userForm('Edit User: '+full.name,full,`submitSaveUser(${uid})`);
+}
+
+async function submitSaveUser(uid){
+  if(!FORM.validate())return;
+  const p={
+    username:document.getElementById('fu-username').value.trim(),
+    name:document.getElementById('fu-name').value.trim(),
+    dept:document.getElementById('fu-dept').value.trim(),
+    email:document.getElementById('fu-email').value.trim(),
+    status:document.getElementById('fu-status').value,
+    risk:document.getElementById('fu-risk').value,
+    mfa:document.getElementById('fu-mfa').checked,
+    last_login:document.getElementById('fu-lastlogin').value,
+    groups:getTagInputValues('fuGroupWrap'),
+  };
+  const res=uid ? await API._req('PUT',`/users/${uid}`,p) : await API.post('/users',p);
+  if(!res||res.error){FORM.msg('error',res?.error||'Failed');return;}
+  FORM.close(); showToast('✓ User '+(uid?'updated':'created')+': '+p.username,'ok'); loadUsers();
+}
+
+function confirmDeleteUser(uid,username){
+  FORM.confirm('Delete User',username,async()=>{
+    const res=await API.del(`/users/${uid}`);
+    showToast(res?.message||'Deleted','ok'); loadUsers();
+  });
+}
+
+loadUsers();
+</script>
+{% endblock %}

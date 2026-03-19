@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Compliance — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Compliance Framework{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Compliance Framework</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('compBody','compliance.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateControl()">+ Add Control</button>
+  </div>
+</div>
+<div class="dash-grid">
+  <div class="panel span-2">
+    <div class="panel-hdr">
+      <span class="panel-title">Controls</span>
+      <div class="panel-actions">
+        <select class="select" id="fwFilter" onchange="loadCompliance()" style="font-size:.7rem;padding:.25rem .5rem">
+          <option value="">All Frameworks</option><option value="SOC2">SOC 2</option><option value="ISO27001">ISO 27001</option>
+        </select>
+        <select class="select" id="statusFilter2" onchange="loadCompliance()" style="font-size:.7rem;padding:.25rem .5rem">
+          <option value="">All Status</option><option value="pass">Pass</option><option value="fail">Fail</option>
+        </select>
+      </div>
+    </div>
+    <table class="table">
+      <thead><tr><th>Framework</th><th>Control ID</th><th>Control</th><th>Category</th><th>Evidence</th><th>Last Check</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="compBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Score by Framework</span></div>
+    <div style="padding:1rem" id="scoreCards"><p class="text-dim small" style="padding:.5rem">Loading…</p></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let COMP_CACHE = [];
+
+async function loadCompliance() {
+  const fw=document.getElementById('fwFilter').value, st=document.getElementById('statusFilter2').value;
+  const [data, scores] = await Promise.all([API.get(`/compliance?framework=${fw}&status=${st}`), API.get('/compliance/score')]);
+  if (scores && !scores.error) {
+    document.getElementById('scoreCards').innerHTML = Object.entries(scores).map(([fw,d]) => `
+      <div style="margin-bottom:1.1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+          <b class="mono" style="font-size:.72rem">${fw}</b>
+          <span class="mono ${d.score>=80?'text-ok':d.score>=50?'text-warn':'text-danger'}" style="font-size:1.1rem;font-weight:600">${d.score}%</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width:${d.score}%;background:${d.score>=80?'var(--green)':d.score>=50?'var(--amber)':'var(--red)'}"></div></div>
+        <div style="display:flex;gap:.75rem;margin-top:.3rem;font-size:.65rem;color:var(--text2)">
+          <span class="text-ok">✓ ${d.pass||0} pass</span>
+          <span class="text-danger">✗ ${d.fail||0} fail</span>
+          <span>${d.total} total</span>
+        </div>
+      </div>`).join('');
+  }
+  if (!data||data.error) return;
+  COMP_CACHE = data;
+  document.getElementById('compBody').innerHTML = data.length ? data.map(c => `
+    <tr>
+      <td><span class="badge badge-info">${c.framework}</span></td>
+      <td class="mono small text-dim">${c.control_id}</td>
+      <td class="small"><b>${esc(c.control)}</b></td>
+      <td><span class="badge badge-dim">${c.category||'—'}</span></td>
+      <td class="small text-dim">${c.evidence||'—'}</td>
+      <td class="mono small text-dim">${c.last_check||'—'}</td>
+      <td>${c.status==='pass'?'<span class="badge badge-ok">Pass</span>':'<span class="badge badge-danger">Fail</span>'}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditControl(${c.id})">Edit</button>
+        <button class="action-btn" onclick="toggleStatus(${c.id},'${c.status}')">${c.status==='pass'?'Mark Fail':'Mark Pass'}</button>
+        <button class="action-btn danger" onclick="confirmDeleteControl(${c.id},'${c.control_id}')">Delete</button>
+      </div></td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty-state">No controls found.</td></tr>';
+}
+
+function _controlForm(title, v, fn) {
+  FORM.open(title, `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field"><label>Framework <span class="req">*</span></label>
+        <select class="field-select" id="cc-fw">
+          <option value="SOC2" ${v.framework==='SOC2'||!v.framework?'selected':''}>SOC 2</option>
+          <option value="ISO27001" ${v.framework==='ISO27001'?'selected':''}>ISO 27001</option>
+        </select></div>
+      <div class="field"><label>Control ID <span class="req">*</span></label>
+        <input class="field-input" id="cc-cid" data-required value="${v.control_id||''}" placeholder="CC6.1, A.9.2…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field col-span-2"><label>Control Name <span class="req">*</span></label>
+        <input class="field-input" id="cc-name" data-required value="${esc(v.control)||''}" placeholder="Logical access controls…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Category</label>
+        <input class="field-input" id="cc-cat" value="${v.category||''}" placeholder="Access Control, Audit…"/></div>
+      <div class="field"><label>Status</label>
+        <select class="field-select" id="cc-status">
+          <option value="fail" ${v.status==='fail'||!v.status?'selected':''}>Fail</option>
+          <option value="pass" ${v.status==='pass'?'selected':''}>Pass</option>
+        </select></div>
+      <div class="field col-span-2"><label>Evidence Notes</label>
+        <textarea class="field-textarea" id="cc-evidence" style="min-height:60px">${v.evidence||''}</textarea></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`, {size:'modal-lg'});
+}
+
+function openCreateControl() { _controlForm('Add Compliance Control', {}, 'submitSaveControl(null)'); }
+function openEditControl(id) {
+  const c = COMP_CACHE.find(x=>x.id===id); if(!c) return;
+  _controlForm('Edit Control: '+c.control_id, c, `submitSaveControl(${id})`);
+}
+async function submitSaveControl(id) {
+  if (!FORM.validate()) return;
+  const p = {framework:document.getElementById('cc-fw').value, control_id:document.getElementById('cc-cid').value.trim(),
+    control:document.getElementById('cc-name').value.trim(), category:document.getElementById('cc-cat').value.trim(),
+    status:document.getElementById('cc-status').value, evidence:document.getElementById('cc-evidence').value.trim()};
+  const res = id ? await API._req('PUT',`/compliance/${id}`,p) : await API.post('/compliance',p);
+  if (res?.error) { FORM.msg('error', res.error); return; }
+  FORM.close(); showToast('✓ Control saved','ok'); loadCompliance();
+}
+async function toggleStatus(id, current) {
+  const newStatus = current==='pass'?'fail':'pass';
+  await API.patch(`/compliance/${id}`,{status:newStatus});
+  showToast('Status updated to '+newStatus, newStatus==='pass'?'ok':'warn');
+  loadCompliance();
+}
+function confirmDeleteControl(id, cid) {
+  FORM.confirm('Delete Control', cid, async()=>{ await API.del(`/compliance/${id}`); showToast('Deleted','ok'); loadCompliance(); });
+}
+loadCompliance();
+</script>
+{% endblock %}

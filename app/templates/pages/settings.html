@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Settings — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Settings{% endblock %}
+{% block content %}
+<div class="page-header"><h1 class="page-title">Settings</h1></div>
+
+<!-- ── Theme Panel ─────────────────────────────────────── -->
+<div class="panel" style="margin-bottom:1rem">
+  <div class="panel-hdr">
+    <span class="panel-title">🎨 Appearance &amp; Theme</span>
+    <span class="small text-dim">Saved automatically to your browser</span>
+  </div>
+  <div style="padding:.85rem 1rem">
+    <div class="tk-label" style="margin-bottom:.6rem">Select Theme</div>
+    <div id="settingsThemeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.5rem"></div>
+  </div>
+</div>
+
+<div class="settings-grid">
+
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Database</span></div>
+    <div class="settings-form">
+      <div class="form-row">
+        <label>Database Path</label>
+        <input class="input" type="text" value="instance/adaudit.db" readonly/>
+      </div>
+      <div class="form-row">
+        <label>Records</label>
+        <input class="input" type="text" id="dbStats" value="Loading…" readonly/>
+      </div>
+      <button class="btn btn-danger" onclick="if(confirm('Re-seed database with fresh sample data?')) reseedDb()">Re-seed Database</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Active Directory Connection</span></div>
+    <div class="settings-form">
+      <div class="form-row">
+        <label>AD Server (LDAP)</label>
+        <input class="input" id="cfg-ldap" type="text" placeholder="ldap://dc.corp.local"/>
+      </div>
+      <div class="form-row">
+        <label>Bind User</label>
+        <input class="input" id="cfg-user" type="text" placeholder="CORP\svc_audit"/>
+      </div>
+      <div class="form-row">
+        <label>Password</label>
+        <input class="input" id="cfg-pass" type="password" placeholder="••••••••"/>
+      </div>
+      <div class="form-row">
+        <label>Base DN</label>
+        <input class="input" id="cfg-dn" type="text" placeholder="DC=corp,DC=local"/>
+      </div>
+      <button class="btn btn-primary" onclick="showToast('AD connection saved (requires backend restart)', 'ok')">Save & Test</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Audit Rules</span></div>
+    <div class="settings-form">
+      <div class="form-row toggle-row">
+        <label>Stale account threshold (days)</label>
+        <input class="input short" type="number" value="90"/>
+      </div>
+      <div class="form-row toggle-row">
+        <label>Alert on failed logins</label>
+        <label class="toggle"><input type="checkbox" checked/><span></span></label>
+      </div>
+      <div class="form-row toggle-row">
+        <label>Flag privilege escalations</label>
+        <label class="toggle"><input type="checkbox" checked/><span></span></label>
+      </div>
+      <div class="form-row toggle-row">
+        <label>MFA enforcement check</label>
+        <label class="toggle"><input type="checkbox" checked/><span></span></label>
+      </div>
+      <button class="btn btn-primary" onclick="showToast('Rules saved', 'ok')">Save Rules</button>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Render inline theme grid on settings page
+function renderSettingsThemes() {
+  const grid = document.getElementById('settingsThemeGrid');
+  if (!grid || typeof THEMES === 'undefined') return;
+  const current = document.documentElement.getAttribute('data-theme') || 'ocean';
+  grid.innerHTML = THEMES.map(t => `
+    <button onclick="applyTheme('${t.id}');renderSettingsThemes()"
+      style="background:${current===t.id?'var(--accent-dim)':'var(--bg3)'};
+             border:1.5px solid ${current===t.id?'var(--accent)':'var(--border)'};
+             border-radius:8px;padding:.55rem .65rem;cursor:pointer;text-align:left;transition:all .18s ease">
+      <div style="display:flex;gap:3px;height:20px;border-radius:4px;overflow:hidden;margin-bottom:.4rem">
+        <div style="flex:2;background:${t.preview[0]}"></div>
+        <div style="flex:1;background:${t.preview[1]}"></div>
+        <div style="flex:0.6;background:${t.preview[2]};border-radius:0 3px 3px 0"></div>
+      </div>
+      <div style="font-size:.72rem;font-weight:600;color:var(--text0);margin-bottom:.1rem">${t.name} ${current===t.id?'✓':''}</div>
+      <div style="font-size:.62rem;color:var(--text2)">${t.desc}</div>
+    </button>`).join('');
+}
+document.addEventListener('DOMContentLoaded', () => setTimeout(renderSettingsThemes, 100));
+</script>
+<script>
+async function loadStats() {
+  const [users, groups, audit, threats] = await Promise.all([
+    API.get('/users'), API.get('/groups'),
+    API.get('/audit?size=1'), API.get('/threats'),
+  ]);
+  document.getElementById('dbStats').value =
+    `${users?.length||0} users · ${groups?.length||0} groups · ${audit?.total||0} events · ${threats?.length||0} threats`;
+}
+
+async function reseedDb() {
+  showToast('Re-seeding not available via UI — restart Flask to re-seed', 'warn');
+}
+
+loadStats();
+</script>
+{% endblock %}

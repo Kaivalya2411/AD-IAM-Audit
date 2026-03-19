@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Anomalies — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Anomaly Detection{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Anomaly Detection</h1>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="exportTableCSV('anomalyBody','anomalies.csv')">⬇ CSV</button>
+    <button class="btn btn-primary" onclick="openCreateAnomaly()">+ Log Anomaly</button>
+  </div>
+</div>
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="9" cy="9" r="5.5"/><line x1="13.5" y1="13.5" x2="17" y2="17"/></svg>
+    <input class="search-input" id="anomalySearch" placeholder="Search user, type, description…" oninput="loadAnomalies()"/>
+  </div>
+  <select class="select" id="anomalySevFilter" onchange="loadAnomalies()">
+    <option value="">All Severity</option>
+    <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+  </select>
+  <select class="select" id="anomalyStatusFilter" onchange="loadAnomalies()">
+    <option value="">All Status</option>
+    <option value="open">Open</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option>
+  </select>
+</div>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>User</th><th>Type</th><th>Description</th><th>Source IP</th><th>Detected</th><th>Severity</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="anomalyBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let ANOMALY_CACHE = [];
+const anomalyStatusBadge = s => ({'open':'<span class="badge badge-danger">Open</span>','investigating':'<span class="badge badge-warn">Investigating</span>','resolved':'<span class="badge badge-ok">Resolved</span>'}[s]||`<span class="badge badge-dim">${s}</span>`);
+
+async function loadAnomalies() {
+  const q=document.getElementById('anomalySearch').value, sv=document.getElementById('anomalySevFilter').value, st=document.getElementById('anomalyStatusFilter').value;
+  const data = await API.get(`/anomalies?q=${q}&severity=${sv}&status=${st}`);
+  if (!data||data.error) return;
+  ANOMALY_CACHE = data;
+  document.getElementById('anomalyBody').innerHTML = data.length ? data.map(a => `
+    <tr>
+      <td class="mono text-info">${esc(a.username)||'—'}</td>
+      <td><span class="badge badge-purple">${esc(a.type)}</span></td>
+      <td class="small">${esc(a.description)}</td>
+      <td class="mono small text-dim">${esc(a.source_ip)||'—'}</td>
+      <td class="mono small text-dim">${a.detected_at}</td>
+      <td>${riskBadge(a.severity)}</td>
+      <td>${anomalyStatusBadge(a.status)}</td>
+      <td><div class="row-actions">
+        <button class="action-btn" onclick="openEditAnomaly(${a.id})">Edit</button>
+        ${a.status!=='investigating'?`<button class="action-btn" onclick="patchAnomaly(${a.id},'investigating')">Investigate</button>`:''}
+        ${a.status!=='resolved'?`<button class="action-btn" onclick="patchAnomaly(${a.id},'resolved')">Resolve</button>`:''}
+        <button class="action-btn danger" onclick="confirmDeleteAnomaly(${a.id},'${a.type.replace(/'/g,'')}')">Delete</button>
+      </div></td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty-state">No anomalies found.</td></tr>';
+}
+
+function _anomalyForm(title, v, fn) {
+  FORM.open(title, `
+    <div id="formMsg" class="form-msg"></div>
+    <div class="form-grid">
+      <div class="field"><label>Type <span class="req">*</span></label>
+        <input class="field-input" id="an-type" data-required value="${esc(v.type)||''}" placeholder="Brute Force, Off-Hours Login…"/>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Username</label>
+        <input class="field-input" id="an-user" value="${esc(v.username)||''}" placeholder="jsmith"/></div>
+      <div class="field col-span-2"><label>Description <span class="req">*</span></label>
+        <textarea class="field-textarea" id="an-desc" data-required style="min-height:60px">${esc(v.description)||''}</textarea>
+        <div class="field-error">Required</div></div>
+      <div class="field"><label>Severity <span class="req">*</span></label>
+        <select class="field-select" id="an-sev">
+          <option value="critical" ${v.severity==='critical'?'selected':''}>Critical</option>
+          <option value="high" ${v.severity==='high'?'selected':''}>High</option>
+          <option value="medium" ${v.severity==='medium'||!v.severity?'selected':''}>Medium</option>
+          <option value="low" ${v.severity==='low'?'selected':''}>Low</option>
+        </select></div>
+      <div class="field"><label>Status</label>
+        <select class="field-select" id="an-status">
+          <option value="open" ${v.status==='open'||!v.status?'selected':''}>Open</option>
+          <option value="investigating" ${v.status==='investigating'?'selected':''}>Investigating</option>
+          <option value="resolved" ${v.status==='resolved'?'selected':''}>Resolved</option>
+        </select></div>
+      <div class="field"><label>Source IP</label>
+        <input class="field-input" id="an-ip" value="${esc(v.source_ip)||''}" placeholder="10.0.0.1"/></div>
+      <div class="field"><label>Detected At</label>
+        <input class="field-input" id="an-date" type="datetime-local" value="${(v.detected_at||'').slice(0,16)}"/></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="FORM.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="${fn}">Save</button>
+    </div>`, {size:'modal-lg'});
+}
+
+function openCreateAnomaly() { _anomalyForm('Log Anomaly', {}, 'submitSaveAnomaly(null)'); }
+function openEditAnomaly(id) {
+  const a = ANOMALY_CACHE.find(x=>x.id===id); if(!a) return;
+  _anomalyForm('Edit Anomaly', a, `submitSaveAnomaly(${id})`);
+}
+async function submitSaveAnomaly(id) {
+  if (!FORM.validate()) return;
+  const p = {type:document.getElementById('an-type').value.trim(), username:document.getElementById('an-user').value.trim(),
+    description:document.getElementById('an-desc').value.trim(), severity:document.getElementById('an-sev').value,
+    status:document.getElementById('an-status').value, source_ip:document.getElementById('an-ip').value.trim(),
+    detected_at:document.getElementById('an-date').value||undefined};
+  const res = id ? await API._req('PUT',`/anomalies/${id}`,p) : await API.post('/anomalies',p);
+  if (res?.error) { FORM.msg('error', res.error); return; }
+  FORM.close(); showToast('✓ Anomaly saved','ok'); loadAnomalies();
+}
+async function patchAnomaly(id, status) {
+  await API.patch(`/anomalies/${id}`,{status}); showToast('Updated: '+status, status==='resolved'?'ok':'warn'); loadAnomalies();
+}
+function confirmDeleteAnomaly(id, type) {
+  FORM.confirm('Delete Anomaly', type, async()=>{ await API.del('/anomalies/'+id); showToast('Deleted','ok'); loadAnomalies(); });
+}
+loadAnomalies();
+</script>
+{% endblock %}

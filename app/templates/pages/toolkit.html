@@ -1,0 +1,1534 @@
+{% extends "base.html" %}
+{% block title %}Security Toolkit — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Security Toolkit{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Toolkit layout ──────────────────────────────────── */
+.toolkit-tabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+}
+.tk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.38rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  transition: all 0.18s;
+  font-family: var(--sans);
+  user-select: none;
+}
+.tk-tab:hover { color: var(--text1); border-color: var(--border2); }
+.tk-tab.active { background: var(--cyan-dim); color: var(--cyan); border-color: rgba(56,189,248,.35); }
+.tk-tab .tk-tab-icon { font-size: 0.9rem; }
+
+/* ── Tool panel ──────────────────────────────────────── */
+.tool-panel { display: none; }
+.tool-panel.active { display: block; }
+
+.tool-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.tool-card-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+.tool-card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text0);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tool-card-desc {
+  font-size: 0.68rem;
+  color: var(--text2);
+  margin-top: 1px;
+}
+.tool-card-body { padding: 1rem; }
+
+/* ── IO boxes ────────────────────────────────────────── */
+.io-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+.io-col { display: flex; flex-direction: column; gap: 0.4rem; }
+.io-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.io-box {
+  width: 100%;
+  background: var(--bg0);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  color: var(--text1);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  min-height: 90px;
+  transition: border-color 0.18s;
+}
+.io-box:focus { border-color: var(--cyan); }
+.io-box.error { border-color: var(--red); color: var(--red); }
+.io-box.readonly { opacity: 0.85; cursor: default; }
+
+.io-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding-top: 1.6rem;
+}
+.io-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.38rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: var(--sans);
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.io-btn-primary { background: var(--cyan); color: var(--bg0); }
+.io-btn-primary:hover { background: #5dcffa; }
+.io-btn-ghost { background: var(--bg3); color: var(--text1); border: 1px solid var(--border2); }
+.io-btn-ghost:hover { color: var(--cyan); border-color: var(--cyan); }
+.io-btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
+
+.copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: 0.65rem;
+  font-family: var(--mono);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.copy-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+
+/* ── Tool options row ───────────────────────────────── */
+.tool-opts {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+.opt-label { font-size: 0.7rem; color: var(--text2); }
+.opt-select {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text1);
+  font-size: 0.73rem;
+  font-family: var(--sans);
+  padding: 0.28rem 0.6rem;
+  border-radius: 5px;
+  outline: none;
+}
+.opt-check { display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--text2); cursor: pointer; }
+.opt-check input { accent-color: var(--cyan); }
+
+/* ── Hash output row ────────────────────────────────── */
+.hash-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.hash-row:last-child { border-bottom: none; }
+.hash-algo {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--cyan);
+  background: var(--cyan-dim);
+  border: 1px solid rgba(56,189,248,.2);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  min-width: 60px;
+  text-align: center;
+}
+.hash-val {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text1);
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* ── Password strength bar ──────────────────────────── */
+.pw-strength-bar {
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 99px;
+  margin: 0.5rem 0;
+  overflow: hidden;
+}
+.pw-strength-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+.pw-criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; margin-top: 0.5rem; }
+.pw-crit {
+  font-size: 0.68rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.pw-crit.met  { color: var(--green); }
+.pw-crit.unmet{ color: var(--text2); }
+
+/* ── JWT panels ─────────────────────────────────────── */
+.jwt-parts { display: flex; flex-direction: column; gap: 0.5rem; }
+.jwt-part {
+  border-radius: 6px;
+  overflow: hidden;
+}
+.jwt-part-hdr {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  padding: 0.3rem 0.65rem;
+  font-weight: 600;
+}
+.jwt-header-hdr  { background: rgba(248,113,113,.15); color: var(--red); }
+.jwt-payload-hdr { background: rgba(251,191,36,.12); color: var(--amber); }
+.jwt-sig-hdr     { background: rgba(56,189,248,.1); color: var(--cyan); }
+.jwt-part-body {
+  background: var(--bg0);
+  padding: 0.65rem 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text1);
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* ── IP / CIDR result ───────────────────────────────── */
+.ip-result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.ip-result-item {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.ip-result-item label {
+  font-size: 0.6rem;
+  font-family: var(--mono);
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.ip-result-item span {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text0);
+}
+
+/* ── Regex tester ───────────────────────────────────── */
+.regex-match { background: rgba(56,189,248,.18); border-radius: 2px; }
+.regex-stats { font-size: 0.7rem; color: var(--text2); margin-top: 0.5rem; font-family: var(--mono); }
+
+/* ── Diff ───────────────────────────────────────────── */
+.diff-add { background: rgba(74,222,128,.12); color: var(--green); }
+.diff-del { background: rgba(248,113,113,.12); color: var(--red); }
+.diff-output {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+@media (max-width: 800px) {
+  .io-row { grid-template-columns: 1fr; }
+  .io-arrow { flex-direction: row; padding-top: 0; justify-content: center; }
+  .ip-result-grid { grid-template-columns: 1fr; }
+  .pw-criteria { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🔧 Security Toolkit</h1>
+  <div class="page-actions">
+    <span class="small text-dim" style="align-self:center">12 built-in tools · no external requests</span>
+  </div>
+</div>
+
+<!-- ── Tab bar ──────────────────────────────────────────── -->
+<div class="toolkit-tabs">
+  <button class="tk-tab active" onclick="switchTab('encode')"><span class="tk-tab-icon">🔐</span> Encode / Decode</button>
+  <button class="tk-tab" onclick="switchTab('hash')"><span class="tk-tab-icon">#</span> Hash Generator</button>
+  <button class="tk-tab" onclick="switchTab('jwt')"><span class="tk-tab-icon">🪙</span> JWT Decoder</button>
+  <button class="tk-tab" onclick="switchTab('password')"><span class="tk-tab-icon">🔑</span> Password Tools</button>
+  <button class="tk-tab" onclick="switchTab('url')"><span class="tk-tab-icon">🔗</span> URL Tools</button>
+  <button class="tk-tab" onclick="switchTab('ip')"><span class="tk-tab-icon">🌐</span> IP / CIDR</button>
+  <button class="tk-tab" onclick="switchTab('json')"><span class="tk-tab-icon">{}</span> JSON / XML</button>
+  <button class="tk-tab" onclick="switchTab('regex')"><span class="tk-tab-icon">.*</span> Regex Tester</button>
+  <button class="tk-tab" onclick="switchTab('diff')"><span class="tk-tab-icon">⇄</span> Text Diff</button>
+  <button class="tk-tab" onclick="switchTab('timestamp')"><span class="tk-tab-icon">⏱</span> Timestamp</button>
+  <button class="tk-tab" onclick="switchTab('uuid')"><span class="tk-tab-icon">🎲</span> UUID / Random</button>
+  <button class="tk-tab" onclick="switchTab('cert')"><span class="tk-tab-icon">📜</span> Cert / ASN1</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: ENCODE / DECODE
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel active" id="panel-encode">
+
+  <!-- Base64 -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔐 Base64 Encode / Decode</div><div class="tool-card-desc">RFC 4648 · standard and URL-safe variants</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-check"><input type="checkbox" id="b64-urlsafe" onchange="b64Convert('encode')"/> URL-safe</label>
+        <label class="opt-check"><input type="checkbox" id="b64-nopad"/> No padding</label>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Plain text</div>
+          <textarea class="io-box" id="b64-plain" placeholder="Enter text to encode…" oninput="b64Convert('encode')"></textarea>
+          <button class="io-btn io-btn-ghost" onclick="b64Paste('b64-plain')">📋 Paste</button>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="b64Convert('encode')">Encode →</button>
+          <button class="io-btn io-btn-ghost" onclick="b64Convert('decode')">← Decode</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="io-label">Base64</div>
+            <button class="copy-btn" onclick="copyVal('b64-encoded')">Copy</button>
+          </div>
+          <textarea class="io-box readonly" id="b64-encoded" placeholder="Result…" oninput="b64Convert('decode')"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hex -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🟦 Hex Encode / Decode</div><div class="tool-card-desc">Text ↔ Hexadecimal representation</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-label">Separator:</label>
+        <select class="opt-select" id="hex-sep" onchange="hexConvert('encode')">
+          <option value="">None</option><option value=" ">Space</option>
+          <option value=":">Colon</option><option value="-">Dash</option>
+        </select>
+        <label class="opt-check"><input type="checkbox" id="hex-upper" onchange="hexConvert('encode')"/> Uppercase</label>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Plain text / Bytes</div>
+          <textarea class="io-box" id="hex-plain" placeholder="Enter text…" oninput="hexConvert('encode')"></textarea>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="hexConvert('encode')">Encode →</button>
+          <button class="io-btn io-btn-ghost" onclick="hexConvert('decode')">← Decode</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="io-label">Hex</div>
+            <button class="copy-btn" onclick="copyVal('hex-encoded')">Copy</button>
+          </div>
+          <textarea class="io-box" id="hex-encoded" placeholder="Hex result…" oninput="hexConvert('decode')"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Binary -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">01 Binary Encode / Decode</div><div class="tool-card-desc">Text ↔ Binary (8-bit per character)</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Plain text</div>
+          <textarea class="io-box" id="bin-plain" placeholder="Enter text…" oninput="binConvert('encode')"></textarea>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="binConvert('encode')">Encode →</button>
+          <button class="io-btn io-btn-ghost" onclick="binConvert('decode')">← Decode</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="io-label">Binary</div>
+            <button class="copy-btn" onclick="copyVal('bin-encoded')">Copy</button>
+          </div>
+          <textarea class="io-box" id="bin-encoded" placeholder="01001000…" oninput="binConvert('decode')"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HTML entities -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🌐 HTML Entity Encode / Decode</div><div class="tool-card-desc">Escape &lt; &gt; &amp; &quot; and all special characters</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Raw HTML / text</div>
+          <textarea class="io-box" id="html-plain" placeholder='<script>alert("xss")</script>' oninput="htmlConvert('encode')"></textarea>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="htmlConvert('encode')">Encode →</button>
+          <button class="io-btn io-btn-ghost" onclick="htmlConvert('decode')">← Decode</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="io-label">HTML Entities</div>
+            <button class="copy-btn" onclick="copyVal('html-encoded')">Copy</button>
+          </div>
+          <textarea class="io-box" id="html-encoded" placeholder="&lt;script&gt;…" oninput="htmlConvert('decode')"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROT13 / Caesar -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔄 ROT13 / Caesar Cipher</div><div class="tool-card-desc">Simple letter rotation cipher</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-label">Shift:</label>
+        <input type="number" class="opt-select" id="caesar-shift" value="13" min="1" max="25" style="width:60px" oninput="caesarConvert()"/>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Input</div>
+          <textarea class="io-box" id="caesar-in" placeholder="Enter text…" oninput="caesarConvert()"></textarea>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="caesarConvert()">→ Apply</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="io-label">Output</div>
+            <button class="copy-btn" onclick="copyVal('caesar-out')">Copy</button>
+          </div>
+          <textarea class="io-box readonly" id="caesar-out" placeholder="Result…"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: HASH
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-hash">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title"># Hash Generator</div><div class="tool-card-desc">MD5 · SHA-1 · SHA-256 · SHA-384 · SHA-512 simultaneously</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-check"><input type="checkbox" id="hash-upper"/> Uppercase</label>
+        <label class="opt-check"><input type="checkbox" id="hash-hmac" onchange="toggleHmac()"/> HMAC mode</label>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="tool-opts" id="hmac-key-row" style="display:none;margin-bottom:.75rem">
+        <label class="opt-label">HMAC Secret Key:</label>
+        <input class="io-box" id="hmac-key" placeholder="Enter secret key…" style="min-height:auto;height:32px;flex:1" oninput="computeHashes()"/>
+      </div>
+      <textarea class="io-box" id="hash-input" placeholder="Enter text or paste data to hash…" style="min-height:80px;margin-bottom:.75rem" oninput="computeHashes()"></textarea>
+      <div id="hash-results">
+        <div class="hash-row"><span class="hash-algo">MD5</span><span class="hash-val text-dim" id="h-md5">—</span><button class="copy-btn" onclick="copyVal('h-md5')">Copy</button></div>
+        <div class="hash-row"><span class="hash-algo">SHA-1</span><span class="hash-val text-dim" id="h-sha1">—</span><button class="copy-btn" onclick="copyVal('h-sha1')">Copy</button></div>
+        <div class="hash-row"><span class="hash-algo">SHA-256</span><span class="hash-val text-dim" id="h-sha256">—</span><button class="copy-btn" onclick="copyVal('h-sha256')">Copy</button></div>
+        <div class="hash-row"><span class="hash-algo">SHA-384</span><span class="hash-val text-dim" id="h-sha384">—</span><button class="copy-btn" onclick="copyVal('h-sha384')">Copy</button></div>
+        <div class="hash-row"><span class="hash-algo">SHA-512</span><span class="hash-val text-dim" id="h-sha512">—</span><button class="copy-btn" onclick="copyVal('h-sha512')">Copy</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hash Compare -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔍 Hash Verify / Compare</div><div class="tool-card-desc">Check if a file hash matches an expected value</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="form-grid" style="gap:.65rem">
+        <div class="field">
+          <label class="io-label">Computed hash (from above)</label>
+          <input class="io-box" id="hv-computed" placeholder="Paste computed hash…" style="min-height:auto;height:36px"/>
+        </div>
+        <div class="field">
+          <label class="io-label">Expected hash</label>
+          <input class="io-box" id="hv-expected" placeholder="Paste expected hash…" style="min-height:auto;height:36px"/>
+        </div>
+      </div>
+      <button class="io-btn io-btn-primary" style="margin-top:.75rem" onclick="compareHashes()">Compare</button>
+      <div id="hv-result" style="margin-top:.65rem;font-size:.78rem;display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: JWT
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-jwt">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🪙 JWT Decoder</div><div class="tool-card-desc">Decode and inspect JSON Web Tokens — header, payload, expiry, claims</div></div>
+    </div>
+    <div class="tool-card-body">
+      <textarea class="io-box" id="jwt-input" placeholder="Paste JWT token here… eyJhbGciOi..." style="min-height:70px;margin-bottom:.75rem;font-size:.68rem" oninput="decodeJWT()"></textarea>
+      <div id="jwt-output" class="jwt-parts"></div>
+      <div id="jwt-claims" style="margin-top:.75rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: PASSWORD TOOLS
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-password">
+  <!-- Strength checker -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔒 Password Strength Checker</div><div class="tool-card-desc">NIST-based entropy and complexity analysis</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div style="position:relative">
+        <input class="io-box" id="pw-check-input" type="text" placeholder="Type password to analyse…" style="min-height:auto;height:40px;padding-right:3rem" oninput="checkPasswordStrength()"/>
+        <button onclick="togglePwVisible()" style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:.85rem" id="pw-eye">👁</button>
+      </div>
+      <div class="pw-strength-bar"><div class="pw-strength-fill" id="pw-strength-fill" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <span id="pw-strength-label" class="mono small text-dim">—</span>
+        <span id="pw-entropy" class="mono small text-dim">entropy: —</span>
+      </div>
+      <div class="pw-criteria" id="pw-criteria"></div>
+      <div id="pw-time" style="margin-top:.65rem;font-size:.72rem;color:var(--text2)"></div>
+    </div>
+  </div>
+
+  <!-- Generator -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🎲 Password Generator</div><div class="tool-card-desc">Cryptographically random passwords and passphrases</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="tool-opts">
+        <label class="opt-label">Length:</label>
+        <input type="range" id="pw-gen-len" min="8" max="128" value="20" oninput="document.getElementById('pw-gen-len-val').textContent=this.value;generatePassword()"/>
+        <span id="pw-gen-len-val" class="mono small" style="min-width:28px">20</span>
+        <label class="opt-check"><input type="checkbox" id="pg-upper" checked onchange="generatePassword()"/> A-Z</label>
+        <label class="opt-check"><input type="checkbox" id="pg-lower" checked onchange="generatePassword()"/> a-z</label>
+        <label class="opt-check"><input type="checkbox" id="pg-num" checked onchange="generatePassword()"/> 0-9</label>
+        <label class="opt-check"><input type="checkbox" id="pg-sym" checked onchange="generatePassword()"/> !@#$</label>
+        <label class="opt-check"><input type="checkbox" id="pg-noamb" onchange="generatePassword()"/> No ambiguous (0Ol1)</label>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem">
+        <input class="io-box" id="pw-gen-out" readonly style="min-height:auto;height:38px;flex:1;font-size:.8rem"/>
+        <button class="io-btn io-btn-primary" onclick="generatePassword()">↺ New</button>
+        <button class="copy-btn" onclick="copyVal('pw-gen-out')">Copy</button>
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button class="io-btn io-btn-ghost" onclick="generatePassphrase()">Generate Passphrase</button>
+        <input class="io-box" id="pw-passphrase-out" readonly style="min-height:auto;height:36px;flex:1;font-size:.75rem"/>
+        <button class="copy-btn" onclick="copyVal('pw-passphrase-out')">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: URL TOOLS
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-url">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔗 URL Encode / Decode</div><div class="tool-card-desc">Percent-encoding (RFC 3986) · Full URL or component mode</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-check"><input type="checkbox" id="url-full" checked/> Full URL mode</label>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Decoded URL</div>
+          <textarea class="io-box" id="url-plain" placeholder="https://example.com/path?q=hello world&foo=bar baz" oninput="urlConvert('encode')"></textarea>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="urlConvert('encode')">Encode →</button>
+          <button class="io-btn io-btn-ghost" onclick="urlConvert('decode')">← Decode</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between">
+            <div class="io-label">Encoded URL</div>
+            <button class="copy-btn" onclick="copyVal('url-encoded')">Copy</button>
+          </div>
+          <textarea class="io-box" id="url-encoded" placeholder="Encoded result…" oninput="urlConvert('decode')"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- URL Parser -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔍 URL Parser</div><div class="tool-card-desc">Break a URL into its components</div></div>
+    </div>
+    <div class="tool-card-body">
+      <input class="io-box" id="url-parse-input" placeholder="https://user:pass@example.com:8080/path?foo=bar&baz=qux#section" style="min-height:auto;height:38px;margin-bottom:.75rem" oninput="parseURL()"/>
+      <div id="url-parse-result" class="ip-result-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: IP / CIDR
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-ip">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🌐 CIDR / Subnet Calculator</div><div class="tool-card-desc">IPv4 network range, broadcast, usable hosts</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
+        <input class="io-box" id="cidr-input" placeholder="192.168.1.0/24  or  10.0.0.1/255.255.0.0" style="min-height:auto;height:38px;flex:1" oninput="calcCIDR()"/>
+      </div>
+      <div id="cidr-result" class="ip-result-grid"></div>
+    </div>
+  </div>
+
+  <!-- IP Converter -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔢 IP Address Converter</div><div class="tool-card-desc">IPv4 ↔ decimal ↔ hex ↔ binary</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="tool-opts" style="margin-bottom:.65rem">
+        <input class="io-box" id="ip-conv-input" placeholder="192.168.1.1  or  3232235777  or  0xC0A80101" style="min-height:auto;height:36px;flex:1" oninput="convertIP()"/>
+        <button class="io-btn io-btn-primary" onclick="convertIP()">Convert</button>
+      </div>
+      <div id="ip-conv-result" class="ip-result-grid"></div>
+    </div>
+  </div>
+
+  <!-- Private/Public check -->
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔍 IP Range Checker</div><div class="tool-card-desc">Check if IP is private, loopback, multicast, or public</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div style="display:flex;gap:.5rem">
+        <input class="io-box" id="ip-check-input" placeholder="Enter IP address…" style="min-height:auto;height:36px;flex:1" oninput="checkIPType()"/>
+      </div>
+      <div id="ip-check-result" style="margin-top:.65rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: JSON / XML
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-json">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">{} JSON Formatter / Validator</div><div class="tool-card-desc">Prettify, minify, validate and inspect JSON</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-label">Indent:</label>
+        <select class="opt-select" id="json-indent">
+          <option value="2">2 spaces</option><option value="4">4 spaces</option><option value="	">Tab</option>
+        </select>
+        <label class="opt-check"><input type="checkbox" id="json-sort"/> Sort keys</label>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Input JSON</div>
+          <textarea class="io-box" id="json-input" placeholder='{"name":"John","age":30,"active":true}' style="min-height:180px" oninput="formatJSON()"></textarea>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="formatJSON('pretty')">Prettify →</button>
+          <button class="io-btn io-btn-ghost" onclick="formatJSON('mini')">Minify →</button>
+        </div>
+        <div class="io-col">
+          <div style="display:flex;justify-content:space-between">
+            <div class="io-label">Formatted</div>
+            <button class="copy-btn" onclick="copyVal('json-output')">Copy</button>
+          </div>
+          <textarea class="io-box readonly" id="json-output" style="min-height:180px"></textarea>
+        </div>
+      </div>
+      <div id="json-status" style="margin-top:.5rem;font-size:.72rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: REGEX
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-regex">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">.* Regex Tester</div><div class="tool-card-desc">Live regex matching with group capture and highlights</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div style="display:flex;gap:.5rem;margin-bottom:.65rem;align-items:center">
+        <span class="io-label" style="white-space:nowrap">/</span>
+        <input class="io-box" id="regex-pattern" placeholder="([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})" style="min-height:auto;height:36px;flex:1" oninput="runRegex()"/>
+        <span class="io-label" style="white-space:nowrap">/</span>
+        <input class="io-box" id="regex-flags" placeholder="gim" style="min-height:auto;height:36px;width:70px" oninput="runRegex()"/>
+      </div>
+      <textarea class="io-box" id="regex-test" placeholder="Enter test text here…" style="min-height:120px" oninput="runRegex()"></textarea>
+      <div class="regex-stats" id="regex-stats"></div>
+      <div id="regex-groups" style="margin-top:.65rem"></div>
+      <div style="margin-top:.75rem">
+        <div class="io-label" style="margin-bottom:.4rem">Common patterns</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.35rem" id="regex-presets"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: DIFF
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-diff">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">⇄ Text Diff</div><div class="tool-card-desc">Line-by-line comparison of two text blocks</div></div>
+      <div class="tool-opts" style="margin:0">
+        <label class="opt-check"><input type="checkbox" id="diff-ignore-ws"/> Ignore whitespace</label>
+        <label class="opt-check"><input type="checkbox" id="diff-ignore-case"/> Ignore case</label>
+      </div>
+    </div>
+    <div class="tool-card-body">
+      <div class="io-row" style="margin-bottom:.75rem">
+        <div class="io-col">
+          <div class="io-label">Text A (original)</div>
+          <textarea class="io-box" id="diff-a" placeholder="Original text…" style="min-height:140px" oninput="runDiff()"></textarea>
+        </div>
+        <div class="io-arrow"><button class="io-btn io-btn-primary" onclick="runDiff()">Compare →</button></div>
+        <div class="io-col">
+          <div class="io-label">Text B (modified)</div>
+          <textarea class="io-box" id="diff-b" placeholder="Modified text…" style="min-height:140px" oninput="runDiff()"></textarea>
+        </div>
+      </div>
+      <div class="io-label" style="margin-bottom:.35rem">Diff result</div>
+      <div class="io-box readonly diff-output" id="diff-output" style="min-height:100px;max-height:300px;overflow-y:auto"></div>
+      <div id="diff-stats" class="regex-stats" style="margin-top:.4rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: TIMESTAMP
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-timestamp">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">⏱ Unix Timestamp Converter</div><div class="tool-card-desc">Epoch ↔ human-readable date · seconds and milliseconds</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="tool-opts" style="margin-bottom:.75rem">
+        <button class="io-btn io-btn-ghost" onclick="setNowTimestamp()">Use Now</button>
+        <label class="opt-check"><input type="checkbox" id="ts-ms"/> Milliseconds</label>
+      </div>
+      <div class="io-row">
+        <div class="io-col">
+          <div class="io-label">Unix Timestamp</div>
+          <input class="io-box" id="ts-epoch" placeholder="1700000000" style="min-height:auto;height:38px" oninput="tsConvert('from-epoch')"/>
+        </div>
+        <div class="io-arrow">
+          <button class="io-btn io-btn-primary" onclick="tsConvert('from-epoch')">→ Date</button>
+          <button class="io-btn io-btn-ghost" onclick="tsConvert('to-epoch')">← Epoch</button>
+        </div>
+        <div class="io-col">
+          <div class="io-label">Human-readable (UTC)</div>
+          <input class="io-box" id="ts-human" placeholder="2024-01-15 10:30:00" style="min-height:auto;height:38px" oninput="tsConvert('to-epoch')"/>
+        </div>
+      </div>
+      <div id="ts-result" class="ip-result-grid" style="margin-top:.75rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: UUID / RANDOM
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-uuid">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🎲 UUID Generator</div><div class="tool-card-desc">RFC 4122 UUID v4 (random) · bulk generation</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="tool-opts">
+        <label class="opt-label">Count:</label>
+        <input type="number" class="opt-select" id="uuid-count" value="5" min="1" max="100" style="width:65px"/>
+        <label class="opt-check"><input type="checkbox" id="uuid-upper"/> Uppercase</label>
+        <label class="opt-check"><input type="checkbox" id="uuid-no-dash"/> No dashes</label>
+        <button class="io-btn io-btn-primary" onclick="generateUUIDs()">Generate</button>
+        <button class="copy-btn" onclick="copyVal('uuid-output')">Copy All</button>
+      </div>
+      <textarea class="io-box readonly" id="uuid-output" style="min-height:120px"></textarea>
+    </div>
+  </div>
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">🔢 Random Data Generator</div><div class="tool-card-desc">Cryptographically secure random bytes, numbers, strings, tokens</div></div>
+    </div>
+    <div class="tool-card-body">
+      <div class="tool-opts" style="flex-wrap:wrap">
+        <select class="opt-select" id="rand-type">
+          <option value="hex">Hex token</option>
+          <option value="b64">Base64 token</option>
+          <option value="num">Number range</option>
+          <option value="bytes">Random bytes</option>
+          <option value="api-key">API key</option>
+          <option value="pin">PIN</option>
+        </select>
+        <label class="opt-label">Length/Bits:</label>
+        <input type="number" class="opt-select" id="rand-len" value="32" min="1" max="256" style="width:65px"/>
+        <button class="io-btn io-btn-primary" onclick="generateRandom()">Generate</button>
+        <button class="copy-btn" onclick="copyVal('rand-output')">Copy</button>
+      </div>
+      <input class="io-box readonly" id="rand-output" style="min-height:auto;height:38px;margin-top:.5rem;font-size:.78rem"/>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: CERT / ASN1
+     ══════════════════════════════════════════════════════ -->
+<div class="tool-panel" id="panel-cert">
+  <div class="tool-card">
+    <div class="tool-card-hdr">
+      <div><div class="tool-card-title">📜 PEM / Certificate Inspector</div><div class="tool-card-desc">Decode X.509 PEM certificates and read fields</div></div>
+    </div>
+    <div class="tool-card-body">
+      <textarea class="io-box" id="cert-input" placeholder="-----BEGIN CERTIFICATE-----&#10;MIIDXTCCAkWgAwIBAgIJAL...&#10;-----END CERTIFICATE-----" style="min-height:120px;margin-bottom:.75rem;font-size:.68rem" oninput="decodeCert()"></textarea>
+      <div id="cert-output" class="ip-result-grid"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Tab switching ────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tk-tab').forEach((t,i) => t.classList.remove('active'));
+  document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`#panel-${id}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ── Copy utility ─────────────────────────────────────────
+function copyVal(id) {
+  const el = document.getElementById(id);
+  const val = el.value || el.textContent;
+  navigator.clipboard.writeText(val).then(() => showToast('Copied!', 'ok'));
+}
+function b64Paste(id) {
+  navigator.clipboard.readText().then(t => { document.getElementById(id).value = t; b64Convert('encode'); });
+}
+
+// ════════════════════════════════════════════════════════
+// BASE64
+// ════════════════════════════════════════════════════════
+function b64Convert(dir) {
+  const urlSafe = document.getElementById('b64-urlsafe').checked;
+  const noPad   = document.getElementById('b64-nopad').checked;
+  if (dir === 'encode') {
+    const plain = document.getElementById('b64-plain').value;
+    let enc = btoa(unescape(encodeURIComponent(plain)));
+    if (urlSafe) enc = enc.replace(/\+/g,'-').replace(/\//g,'_');
+    if (noPad)   enc = enc.replace(/=+$/,'');
+    document.getElementById('b64-encoded').value = enc;
+    document.getElementById('b64-encoded').classList.remove('error');
+  } else {
+    try {
+      let enc = document.getElementById('b64-encoded').value.trim();
+      enc = enc.replace(/-/g,'+').replace(/_/g,'/');
+      while (enc.length % 4) enc += '=';
+      document.getElementById('b64-plain').value = decodeURIComponent(escape(atob(enc)));
+      document.getElementById('b64-encoded').classList.remove('error');
+    } catch(e) {
+      document.getElementById('b64-encoded').classList.add('error');
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// HEX
+// ════════════════════════════════════════════════════════
+function hexConvert(dir) {
+  const sep   = document.getElementById('hex-sep').value;
+  const upper = document.getElementById('hex-upper').checked;
+  if (dir === 'encode') {
+    const plain = document.getElementById('hex-plain').value;
+    let hex = Array.from(new TextEncoder().encode(plain))
+      .map(b => b.toString(16).padStart(2,'0')).join(sep);
+    document.getElementById('hex-encoded').value = upper ? hex.toUpperCase() : hex;
+  } else {
+    try {
+      const raw = document.getElementById('hex-encoded').value.replace(/[^0-9a-fA-F]/g,'');
+      const bytes = raw.match(/.{1,2}/g)||[];
+      document.getElementById('hex-plain').value = new TextDecoder().decode(new Uint8Array(bytes.map(b=>parseInt(b,16))));
+    } catch(e) {}
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// BINARY
+// ════════════════════════════════════════════════════════
+function binConvert(dir) {
+  if (dir === 'encode') {
+    const plain = document.getElementById('bin-plain').value;
+    const bin = Array.from(new TextEncoder().encode(plain))
+      .map(b => b.toString(2).padStart(8,'0')).join(' ');
+    document.getElementById('bin-encoded').value = bin;
+  } else {
+    try {
+      const raw = document.getElementById('bin-encoded').value.trim().split(/\s+/);
+      const bytes = raw.map(b => parseInt(b,2));
+      document.getElementById('bin-plain').value = new TextDecoder().decode(new Uint8Array(bytes));
+    } catch(e) {}
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// HTML ENTITIES
+// ════════════════════════════════════════════════════════
+function htmlConvert(dir) {
+  if (dir === 'encode') {
+    const t = document.getElementById('html-plain').value;
+    document.getElementById('html-encoded').value = t
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#039;').replace(/`/g,'&#96;');
+  } else {
+    const t = document.getElementById('html-encoded').value;
+    const el = document.createElement('textarea');
+    el.innerHTML = t;
+    document.getElementById('html-plain').value = el.value;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// CAESAR / ROT13
+// ════════════════════════════════════════════════════════
+function caesarConvert() {
+  const shift = parseInt(document.getElementById('caesar-shift').value) || 13;
+  const input = document.getElementById('caesar-in').value;
+  const out = input.split('').map(c => {
+    if (c >= 'A' && c <= 'Z') return String.fromCharCode((c.charCodeAt(0)-65+shift)%26+65);
+    if (c >= 'a' && c <= 'z') return String.fromCharCode((c.charCodeAt(0)-97+shift)%26+97);
+    return c;
+  }).join('');
+  document.getElementById('caesar-out').value = out;
+}
+
+// ════════════════════════════════════════════════════════
+// HASH (Web Crypto API)
+// ════════════════════════════════════════════════════════
+async function computeHashes() {
+  const input = document.getElementById('hash-input').value;
+  const upper = document.getElementById('hash-upper').checked;
+  const hmacMode = document.getElementById('hash-hmac').checked;
+  const key = document.getElementById('hmac-key').value;
+  if (!input) { ['md5','sha1','sha256','sha384','sha512'].forEach(h => { const el=document.getElementById('h-'+h); el.textContent='—'; el.className='hash-val text-dim'; }); return; }
+
+  const enc = new TextEncoder();
+
+  // Simple MD5 implementation
+  function md5(str) {
+    function safeAdd(x,y){let lsw=(x&0xFFFF)+(y&0xFFFF);return((x>>16)+(y>>16)+(lsw>>16))<<16|lsw&0xFFFF}
+    function bitRotateLeft(num,cnt){return num<<cnt|num>>>32-cnt}
+    function md5cmn(q,a,b,x,s,t){return safeAdd(bitRotateLeft(safeAdd(safeAdd(a,q),safeAdd(x,t)),s),b)}
+    function md5ff(a,b,c,d,x,s,t){return md5cmn(b&c|~b&d,a,b,x,s,t)}
+    function md5gg(a,b,c,d,x,s,t){return md5cmn(b&d|c&~d,a,b,x,s,t)}
+    function md5hh(a,b,c,d,x,s,t){return md5cmn(b^c^d,a,b,x,s,t)}
+    function md5ii(a,b,c,d,x,s,t){return md5cmn(c^(b|~d),a,b,x,s,t)}
+    str=unescape(encodeURIComponent(str));
+    let b=[];for(let i=0;i<str.length;i++)b[i>>2]|=str.charCodeAt(i)<<(i%4)*8;
+    b[str.length>>2]|=0x80<<(str.length%4)*8;b[(((str.length+8)>>6)+1)*16-2]=str.length*8;
+    let a=1732584193,bv=-271733879,c=-1732584194,d=271733878;
+    for(let i=0;i<b.length;i+=16){let oa=a,ob=bv,oc=c,od=d;
+      a=md5ff(a,bv,c,d,b[i],7,-680876936);d=md5ff(d,a,bv,c,b[i+1],12,-389564586);
+      c=md5ff(c,d,a,bv,b[i+2],17,606105819);bv=md5ff(bv,c,d,a,b[i+3],22,-1044525330);
+      a=md5ff(a,bv,c,d,b[i+4],7,-176418897);d=md5ff(d,a,bv,c,b[i+5],12,1200080426);
+      c=md5ff(c,d,a,bv,b[i+6],17,-1473231341);bv=md5ff(bv,c,d,a,b[i+7],22,-45705983);
+      a=md5ff(a,bv,c,d,b[i+8],7,1770035416);d=md5ff(d,a,bv,c,b[i+9],12,-1958414417);
+      c=md5ff(c,d,a,bv,b[i+10],17,-42063);bv=md5ff(bv,c,d,a,b[i+11],22,-1990404162);
+      a=md5ff(a,bv,c,d,b[i+12],7,1804603682);d=md5ff(d,a,bv,c,b[i+13],12,-40341101);
+      c=md5ff(c,d,a,bv,b[i+14],17,-1502002290);bv=md5ff(bv,c,d,a,b[i+15],22,1236535329);
+      a=md5gg(a,bv,c,d,b[i+1],5,-165796510);d=md5gg(d,a,bv,c,b[i+6],9,-1069501632);
+      c=md5gg(c,d,a,bv,b[i+11],14,643717713);bv=md5gg(bv,c,d,a,b[i],20,-373897302);
+      a=md5gg(a,bv,c,d,b[i+5],5,-701558691);d=md5gg(d,a,bv,c,b[i+10],9,38016083);
+      c=md5gg(c,d,a,bv,b[i+15],14,-660478335);bv=md5gg(bv,c,d,a,b[i+4],20,-405537848);
+      a=md5gg(a,bv,c,d,b[i+9],5,568446438);d=md5gg(d,a,bv,c,b[i+14],9,-1019803690);
+      c=md5gg(c,d,a,bv,b[i+3],14,-187363961);bv=md5gg(bv,c,d,a,b[i+8],20,1163531501);
+      a=md5gg(a,bv,c,d,b[i+13],5,-1444681467);d=md5gg(d,a,bv,c,b[i+2],9,-51403784);
+      c=md5gg(c,d,a,bv,b[i+7],14,1735328473);bv=md5gg(bv,c,d,a,b[i+12],20,-1926607734);
+      a=md5hh(a,bv,c,d,b[i+5],4,-378558);d=md5hh(d,a,bv,c,b[i+8],11,-2022574463);
+      c=md5hh(c,d,a,bv,b[i+11],16,1839030562);bv=md5hh(bv,c,d,a,b[i+14],23,-35309556);
+      a=md5hh(a,bv,c,d,b[i+1],4,-1530992060);d=md5hh(d,a,bv,c,b[i+4],11,1272893353);
+      c=md5hh(c,d,a,bv,b[i+7],16,-155497632);bv=md5hh(bv,c,d,a,b[i+10],23,-1094730640);
+      a=md5hh(a,bv,c,d,b[i+13],4,681279174);d=md5hh(d,a,bv,c,b[i],11,-358537222);
+      c=md5hh(c,d,a,bv,b[i+3],16,-722521979);bv=md5hh(bv,c,d,a,b[i+6],23,76029189);
+      a=md5hh(a,bv,c,d,b[i+9],4,-640364487);d=md5hh(d,a,bv,c,b[i+12],11,-421815835);
+      c=md5hh(c,d,a,bv,b[i+15],16,530742520);bv=md5hh(bv,c,d,a,b[i+2],23,-995338651);
+      a=md5ii(a,bv,c,d,b[i],6,-198630844);d=md5ii(d,a,bv,c,b[i+7],10,1126891415);
+      c=md5ii(c,d,a,bv,b[i+14],15,-1416354905);bv=md5ii(bv,c,d,a,b[i+5],21,-57434055);
+      a=md5ii(a,bv,c,d,b[i+12],6,1700485571);d=md5ii(d,a,bv,c,b[i+3],10,-1894986606);
+      c=md5ii(c,d,a,bv,b[i+10],15,-1051523);bv=md5ii(bv,c,d,a,b[i+1],21,-2054922799);
+      a=md5ii(a,bv,c,d,b[i+8],6,1873313359);d=md5ii(d,a,bv,c,b[i+15],10,-30611744);
+      c=md5ii(c,d,a,bv,b[i+6],15,-1560198380);bv=md5ii(bv,c,d,a,b[i+13],21,1309151649);
+      a=md5ii(a,bv,c,d,b[i+4],6,-145523070);d=md5ii(d,a,bv,c,b[i+11],10,-1120210379);
+      c=md5ii(c,d,a,bv,b[i+2],15,718787259);bv=md5ii(bv,c,d,a,b[i+9],21,-343485551);
+      a=safeAdd(a,oa);bv=safeAdd(bv,ob);c=safeAdd(c,oc);d=safeAdd(d,od)}
+    return [a,bv,c,d].map(n=>(n<0?n+0x100000000:n).toString(16).padStart(8,'0').match(/../g).map(h=>(parseInt(h,16)&0xFF).toString(16).padStart(2,'0')+''+((parseInt(h,16)>>4)&0xF).toString(16)+(parseInt(h,16)&0xF).toString(16)).join('')).join('');
+  }
+
+  async function hash(algo, data) {
+    const buf = await crypto.subtle.digest(algo, enc.encode(data));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function hmac(algo, data, secret) {
+    const k = await crypto.subtle.importKey('raw', enc.encode(secret), {name:'HMAC',hash:algo}, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', k, enc.encode(data));
+    return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  const setH = async (id, algo, webAlgo) => {
+    try {
+      let h = hmacMode && key ? await hmac(webAlgo, input, key) : await hash(webAlgo, input);
+      if (upper) h = h.toUpperCase();
+      const el = document.getElementById(id);
+      el.textContent = h; el.className = 'hash-val';
+    } catch(e) { document.getElementById(id).textContent = 'Error'; }
+  };
+
+  // MD5 (no Web Crypto support)
+  let m = md5(input); if (upper) m=m.toUpperCase();
+  const mel = document.getElementById('h-md5'); mel.textContent=m; mel.className='hash-val';
+
+  await setH('h-sha1',   'SHA-1',   'SHA-1');
+  await setH('h-sha256', 'SHA-256', 'SHA-256');
+  await setH('h-sha384', 'SHA-384', 'SHA-384');
+  await setH('h-sha512', 'SHA-512', 'SHA-512');
+}
+
+function toggleHmac() {
+  document.getElementById('hmac-key-row').style.display = document.getElementById('hash-hmac').checked ? 'flex' : 'none';
+}
+
+function compareHashes() {
+  const a = document.getElementById('hv-computed').value.trim().toLowerCase();
+  const b = document.getElementById('hv-expected').value.trim().toLowerCase();
+  const el = document.getElementById('hv-result');
+  el.style.display = 'block';
+  if (!a || !b) { el.innerHTML = '<span class="text-warn">Enter both hashes to compare.</span>'; return; }
+  if (a === b) {
+    el.innerHTML = '<span class="text-ok">✓ Hashes match — integrity verified</span>';
+  } else {
+    el.innerHTML = `<span class="text-danger">✗ Hashes DO NOT match</span><br><span class="mono small text-dim">Computed: ${a}</span><br><span class="mono small text-dim">Expected: ${b}</span>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// JWT DECODER
+// ════════════════════════════════════════════════════════
+function decodeJWT() {
+  const raw = document.getElementById('jwt-input').value.trim();
+  const out = document.getElementById('jwt-output');
+  const claims = document.getElementById('jwt-claims');
+  out.innerHTML = ''; claims.innerHTML = '';
+  if (!raw) return;
+  const parts = raw.split('.');
+  if (parts.length < 2) { out.innerHTML = '<span class="text-danger small">Invalid JWT — expected 3 parts separated by dots</span>'; return; }
+  const labels = [
+    {name:'HEADER', cls:'jwt-header-hdr'},
+    {name:'PAYLOAD', cls:'jwt-payload-hdr'},
+    {name:'SIGNATURE', cls:'jwt-sig-hdr'},
+  ];
+  parts.forEach((p, i) => {
+    let decoded = p;
+    if (i < 2) {
+      try {
+        let b = p.replace(/-/g,'+').replace(/_/g,'/');
+        while(b.length%4) b+='=';
+        decoded = JSON.stringify(JSON.parse(atob(b)), null, 2);
+      } catch(e) { decoded = '(could not decode)'; }
+    }
+    const lbl = labels[i] || {name:`PART ${i+1}`, cls:'jwt-sig-hdr'};
+    out.innerHTML += `<div class="jwt-part"><div class="jwt-part-hdr ${lbl.cls}">${lbl.name}</div><div class="jwt-part-body">${decoded}</div></div>`;
+  });
+  // Parse payload for claims info
+  try {
+    let b = parts[1].replace(/-/g,'+').replace(/_/g,'/');
+    while(b.length%4) b+='=';
+    const payload = JSON.parse(atob(b));
+    let info = '';
+    if (payload.exp) {
+      const exp = new Date(payload.exp*1000);
+      const expired = exp < new Date();
+      info += `<div style="margin-top:.5rem;padding:.5rem .75rem;border-radius:6px;font-size:.74rem;border:1px solid;${expired?'border-color:rgba(248,113,113,.3);background:var(--red-dim);color:var(--red)':'border-color:rgba(74,222,128,.3);background:var(--green-dim);color:var(--green)'}">
+        ${expired?'⚠ TOKEN EXPIRED':'✓ Token valid'} · Expires: ${exp.toUTCString()}
+      </div>`;
+    }
+    if (payload.iat) info += `<div class="small text-dim" style="margin-top:.3rem">Issued at: ${new Date(payload.iat*1000).toUTCString()}</div>`;
+    if (payload.sub) info += `<div class="small text-dim">Subject: <span class="mono text-cyan">${payload.sub}</span></div>`;
+    if (payload.iss) info += `<div class="small text-dim">Issuer: <span class="mono">${payload.iss}</span></div>`;
+    claims.innerHTML = info;
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════════════════
+// PASSWORD STRENGTH
+// ════════════════════════════════════════════════════════
+function checkPasswordStrength() {
+  const pw = document.getElementById('pw-check-input').value;
+  const fill = document.getElementById('pw-strength-fill');
+  const label = document.getElementById('pw-strength-label');
+  const entropy = document.getElementById('pw-entropy');
+  const crit = document.getElementById('pw-criteria');
+  const time = document.getElementById('pw-time');
+
+  if (!pw) { fill.style.width='0%'; label.textContent='—'; entropy.textContent='entropy: —'; crit.innerHTML=''; time.innerHTML=''; return; }
+
+  const checks = [
+    { id:'len8',  label:'≥ 8 characters',   met: pw.length>=8 },
+    { id:'len12', label:'≥ 12 characters',  met: pw.length>=12 },
+    { id:'upper', label:'Uppercase (A-Z)',   met: /[A-Z]/.test(pw) },
+    { id:'lower', label:'Lowercase (a-z)',   met: /[a-z]/.test(pw) },
+    { id:'num',   label:'Numbers (0-9)',     met: /[0-9]/.test(pw) },
+    { id:'sym',   label:'Symbols (!@#…)',    met: /[^A-Za-z0-9]/.test(pw) },
+    { id:'no-rep',label:'No repeated chars', met: !/(.)\1{2,}/.test(pw) },
+    { id:'no-seq',label:'No sequences',      met: !/(012|123|234|345|456|567|678|789|890|abc|bcd|cde|def|qwe|wer|ert)/i.test(pw) },
+  ];
+  crit.innerHTML = checks.map(c => `<div class="pw-crit ${c.met?'met':'unmet'}">${c.met?'✓':'✗'} ${c.label}</div>`).join('');
+
+  const score = checks.filter(c=>c.met).length;
+  const charsetSize = ((/[a-z]/.test(pw)?26:0)+(/[A-Z]/.test(pw)?26:0)+(/[0-9]/.test(pw)?10:0)+(/[^A-Za-z0-9]/.test(pw)?32:0));
+  const entropyBits = Math.log2(Math.pow(charsetSize||1, pw.length)).toFixed(1);
+  entropy.textContent = `entropy: ${entropyBits} bits`;
+
+  const pct = Math.round(score/checks.length*100);
+  const colors = ['var(--red)','var(--red)','var(--amber)','var(--amber)','var(--green)','var(--green)'];
+  const labels2 = ['Very Weak','Weak','Fair','Good','Strong','Very Strong'];
+  const tier = Math.min(5, Math.floor(score/checks.length*5));
+  fill.style.width = pct+'%'; fill.style.background = colors[tier];
+  label.textContent = labels2[tier]; label.style.color = colors[tier];
+
+  // Crack time estimate
+  const combos = Math.pow(charsetSize||1, pw.length);
+  const guessesPerSec = 1e10; // 10 billion/sec (GPU)
+  const secs = combos / guessesPerSec / 2;
+  let t = '';
+  if (secs < 1)   t = 'instantly';
+  else if (secs < 60)   t = Math.round(secs) + ' seconds';
+  else if (secs < 3600) t = Math.round(secs/60) + ' minutes';
+  else if (secs < 86400) t = Math.round(secs/3600) + ' hours';
+  else if (secs < 31536000) t = Math.round(secs/86400) + ' days';
+  else if (secs < 31536000000) t = Math.round(secs/31536000) + ' years';
+  else t = '> 1000 years';
+  time.innerHTML = `<span class="mono small text-dim">⏱ Estimated crack time (GPU brute-force): <b style="color:${colors[tier]}">${t}</b></span>`;
+}
+
+function togglePwVisible() {
+  const inp = document.getElementById('pw-check-input');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ════════════════════════════════════════════════════════
+// PASSWORD GENERATOR
+// ════════════════════════════════════════════════════════
+function generatePassword() {
+  const len    = parseInt(document.getElementById('pw-gen-len').value);
+  const upper  = document.getElementById('pg-upper').checked;
+  const lower  = document.getElementById('pg-lower').checked;
+  const num    = document.getElementById('pg-num').checked;
+  const sym    = document.getElementById('pg-sym').checked;
+  const noAmb  = document.getElementById('pg-noamb').checked;
+  let chars = '';
+  if (upper) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (lower) chars += 'abcdefghijklmnopqrstuvwxyz';
+  if (num)   chars += '0123456789';
+  if (sym)   chars += '!@#$%^&*()-_=+[]{}|;:,.<>?';
+  if (noAmb) chars = chars.replace(/[0Ol1I]/g,'');
+  if (!chars) chars = 'abcdefghijklmnopqrstuvwxyz';
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  document.getElementById('pw-gen-out').value = Array.from(arr).map(n=>chars[n%chars.length]).join('');
+}
+
+const WORDS = ['correct','horse','battery','staple','purple','dragon','tiger','cloud','secure','admin','network','shield','forest','castle','bright','silver','winter','summer','falcon','ocean','thunder','granite','crystal','shadow','maple'];
+function generatePassphrase() {
+  const arr = new Uint32Array(5);
+  crypto.getRandomValues(arr);
+  document.getElementById('pw-passphrase-out').value = Array.from(arr).map(n=>WORDS[n%WORDS.length]).join('-');
+}
+
+// ════════════════════════════════════════════════════════
+// URL TOOLS
+// ════════════════════════════════════════════════════════
+function urlConvert(dir) {
+  const fullMode = document.getElementById('url-full').checked;
+  if (dir === 'encode') {
+    const plain = document.getElementById('url-plain').value;
+    document.getElementById('url-encoded').value = fullMode ? encodeURI(plain) : encodeURIComponent(plain);
+  } else {
+    try {
+      const enc = document.getElementById('url-encoded').value;
+      document.getElementById('url-plain').value = fullMode ? decodeURI(enc) : decodeURIComponent(enc);
+    } catch(e) { document.getElementById('url-encoded').classList.add('error'); }
+  }
+}
+
+function parseURL() {
+  const raw = document.getElementById('url-parse-input').value.trim();
+  const res = document.getElementById('url-parse-result');
+  if (!raw) { res.innerHTML=''; return; }
+  try {
+    const u = new URL(raw.includes('://')?raw:'https://'+raw);
+    const fields = {Protocol:u.protocol, Host:u.hostname, Port:u.port||'(default)', Path:u.pathname,
+      Query:u.search||'—', Hash:u.hash||'—', Username:u.username||'—', Password:u.password?'••••':'—'};
+    res.innerHTML = Object.entries(fields).map(([k,v])=>`<div class="ip-result-item"><label>${k}</label><span>${v}</span></div>`).join('');
+    if (u.searchParams) {
+      let qp = '';
+      u.searchParams.forEach((v,k)=>{ qp+=`<div class="small text-dim" style="padding:.2rem 0"><span class="mono text-info">${k}</span> = ${v}</div>`; });
+      if (qp) res.innerHTML += `<div class="ip-result-item" style="grid-column:span 2"><label>Query params</label>${qp}</div>`;
+    }
+  } catch(e) { res.innerHTML='<span class="text-danger small">Invalid URL</span>'; }
+}
+
+// ════════════════════════════════════════════════════════
+// IP / CIDR
+// ════════════════════════════════════════════════════════
+function ipToNum(ip) {
+  return ip.split('.').reduce((acc,oct)=>(acc<<8)|parseInt(oct),0)>>>0;
+}
+function numToIP(n) {
+  return [(n>>>24)&0xFF,(n>>>16)&0xFF,(n>>>8)&0xFF,n&0xFF].join('.');
+}
+
+function calcCIDR() {
+  const raw = document.getElementById('cidr-input').value.trim();
+  const res = document.getElementById('cidr-result');
+  if (!raw) { res.innerHTML=''; return; }
+  try {
+    let ip, prefix;
+    if (raw.includes('/')) {
+      [ip, prefix] = raw.split('/');
+      prefix = prefix.includes('.') ? (32 - Math.log2(ipToNum('255.255.255.255') - ipToNum(prefix) + 1)) : parseInt(prefix);
+    } else { res.innerHTML='<span class="text-warn small">Enter CIDR like 192.168.1.0/24</span>'; return; }
+    const mask   = prefix===0 ? 0 : (0xFFFFFFFF << (32-prefix))>>>0;
+    const ipNum  = ipToNum(ip);
+    const network= (ipNum & mask)>>>0;
+    const bcast  = (network | (~mask>>>0))>>>0;
+    const hosts  = Math.max(0, bcast - network - 1);
+    const fields = {
+      'Network':     numToIP(network)+'/'+prefix,
+      'Subnet Mask': numToIP(mask),
+      'First Host':  numToIP(network+1),
+      'Last Host':   numToIP(bcast-1),
+      'Broadcast':   numToIP(bcast),
+      'Usable Hosts':hosts.toLocaleString(),
+      'Wildcard':    numToIP(~mask>>>0),
+      'IP Class':    ipNum>=0xE0000000?'Multicast':ipNum>=0xC0000000?'Class C':ipNum>=0x80000000?'Class B':'Class A',
+    };
+    res.innerHTML = Object.entries(fields).map(([k,v])=>`<div class="ip-result-item"><label>${k}</label><span>${v}</span></div>`).join('');
+  } catch(e) { res.innerHTML=`<span class="text-danger small">Error: ${e.message}</span>`; }
+}
+
+function convertIP() {
+  const raw = document.getElementById('ip-conv-input').value.trim();
+  const res = document.getElementById('ip-conv-result');
+  if (!raw) { res.innerHTML=''; return; }
+  try {
+    let num;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(raw))      num = ipToNum(raw);
+    else if (/^0x[0-9a-fA-F]+$/.test(raw)) num = parseInt(raw,16)>>>0;
+    else num = (parseInt(raw)>>>0);
+    const ip = numToIP(num);
+    const fields = {'Dotted Decimal':ip,'Decimal':num>>>0,'Hexadecimal':'0x'+num.toString(16).toUpperCase().padStart(8,'0'),
+      'Binary':num.toString(2).padStart(32,'0').match(/.{8}/g).join('.')};
+    res.innerHTML = Object.entries(fields).map(([k,v])=>`<div class="ip-result-item"><label>${k}</label><span class="mono">${v}</span></div>`).join('');
+  } catch(e) { res.innerHTML='<span class="text-danger small">Invalid input</span>'; }
+}
+
+function checkIPType() {
+  const raw = document.getElementById('ip-check-input').value.trim();
+  const res = document.getElementById('ip-check-result');
+  if (!raw || !/^\d+\.\d+\.\d+\.\d+$/.test(raw)) { res.innerHTML=''; return; }
+  const n = ipToNum(raw);
+  const types = [];
+  if ((n&0xFF000000)===0x7F000000) types.push({label:'Loopback',color:'var(--cyan)'});
+  if ((n&0xFF000000)===0x0A000000||(n&0xFFF00000)===0xAC100000||(n&0xFFFF0000)===0xC0A80000) types.push({label:'Private (RFC 1918)',color:'var(--green)'});
+  if ((n&0xF0000000)===0xE0000000) types.push({label:'Multicast',color:'var(--amber)'});
+  if ((n&0xFFFF0000)===0xA9FE0000) types.push({label:'Link-local (APIPA)',color:'var(--amber)'});
+  if (n===0xFFFFFFFF) types.push({label:'Broadcast',color:'var(--red)'});
+  if (n===0) types.push({label:'Unspecified (0.0.0.0)',color:'var(--text2)'});
+  if (!types.length) types.push({label:'Public / Routable',color:'var(--purple)'});
+  res.innerHTML = types.map(t=>`<span class="badge" style="background:rgba(0,0,0,.2);border-color:${t.color};color:${t.color};margin:.2rem">${t.label}</span>`).join('') +
+    `<div class="small text-dim" style="margin-top:.4rem">Decimal: ${n>>>0} · Hex: 0x${(n>>>0).toString(16).toUpperCase()}</div>`;
+}
+
+// ════════════════════════════════════════════════════════
+// JSON
+// ════════════════════════════════════════════════════════
+function formatJSON(mode) {
+  const input  = document.getElementById('json-input').value;
+  const output = document.getElementById('json-output');
+  const status = document.getElementById('json-status');
+  const indent = document.getElementById('json-indent').value;
+  const sort   = document.getElementById('json-sort').checked;
+  if (!input.trim()) { output.value=''; status.innerHTML=''; return; }
+  try {
+    let obj = JSON.parse(input);
+    if (sort) obj = sortKeys(obj);
+    output.value = mode==='mini' ? JSON.stringify(obj) : JSON.stringify(obj, null, indent==='	'?'\t':parseInt(indent));
+    output.classList.remove('error');
+    status.innerHTML = `<span class="text-ok">✓ Valid JSON</span> <span class="text-dim small">· ${countKeys(obj)} keys · ${input.length} chars input → ${output.value.length} chars output</span>`;
+  } catch(e) {
+    output.value = '';
+    output.classList.add('error');
+    status.innerHTML = `<span class="text-danger">✗ Invalid JSON: ${e.message}</span>`;
+  }
+}
+function sortKeys(obj) {
+  if (Array.isArray(obj)) return obj.map(sortKeys);
+  if (typeof obj==='object'&&obj!==null) return Object.fromEntries(Object.entries(obj).sort().map(([k,v])=>[k,sortKeys(v)]));
+  return obj;
+}
+function countKeys(obj, c=0) {
+  if (typeof obj!=='object'||obj===null) return c;
+  return Object.values(obj).reduce((a,v)=>a+countKeys(v,0),c+Object.keys(obj).length);
+}
+
+// ════════════════════════════════════════════════════════
+// REGEX
+// ════════════════════════════════════════════════════════
+const REGEX_PRESETS = [
+  {name:'Email',     re:'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}'},
+  {name:'IPv4',      re:'\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b'},
+  {name:'URL',       re:'https?://[^\\s/$.?#].[^\\s]*'},
+  {name:'Phone',     re:'\\+?[\\d\\s\\-().]{7,15}'},
+  {name:'Date YYYY-MM-DD', re:'\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])'},
+  {name:'JWT',       re:'ey[A-Za-z0-9-_]+\\.ey[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+'},
+  {name:'UUID',      re:'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'},
+  {name:'Hex color', re:'#[0-9a-fA-F]{3,6}'},
+  {name:'Windows path', re:'[A-Za-z]:\\\\[^\\n"]*'},
+  {name:'Credit card', re:'\\b(?:\\d{4}[\\s-]?){3}\\d{4}\\b'},
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+  const presets = document.getElementById('regex-presets');
+  REGEX_PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = p.name;
+    btn.onclick = () => { document.getElementById('regex-pattern').value=p.re; document.getElementById('regex-flags').value='g'; runRegex(); };
+    presets.appendChild(btn);
+  });
+  generatePassword();
+  generateUUIDs();
+});
+
+function runRegex() {
+  const pat  = document.getElementById('regex-pattern').value;
+  const flags= document.getElementById('regex-flags').value;
+  const test = document.getElementById('regex-test').value;
+  const stats= document.getElementById('regex-stats');
+  const groups= document.getElementById('regex-groups');
+  if (!pat || !test) { stats.textContent=''; groups.innerHTML=''; return; }
+  try {
+    const re = new RegExp(pat, flags);
+    const matches = [...test.matchAll(new RegExp(pat, flags.includes('g')?flags:flags+'g'))];
+    stats.textContent = `${matches.length} match${matches.length!==1?'es':''}`;
+    if (matches.length && matches[0].length > 1) {
+      groups.innerHTML = `<div class="io-label" style="margin-bottom:.35rem">Capture groups (first match)</div>` +
+        matches[0].slice(1).map((g,i)=>`<div class="hash-row"><span class="hash-algo">Group ${i+1}</span><span class="hash-val">${g??'(no match)'}</span></div>`).join('');
+    } else { groups.innerHTML=''; }
+  } catch(e) { stats.innerHTML=`<span class="text-danger">${e.message}</span>`; groups.innerHTML=''; }
+}
+
+// ════════════════════════════════════════════════════════
+// DIFF
+// ════════════════════════════════════════════════════════
+function runDiff() {
+  let a = document.getElementById('diff-a').value;
+  let b = document.getElementById('diff-b').value;
+  const ignoreWS   = document.getElementById('diff-ignore-ws').checked;
+  const ignoreCase = document.getElementById('diff-ignore-case').checked;
+  const out  = document.getElementById('diff-output');
+  const stats= document.getElementById('diff-stats');
+  if (!a && !b) { out.innerHTML=''; stats.textContent=''; return; }
+  if (ignoreCase) { a=a.toLowerCase(); b=b.toLowerCase(); }
+  const la = a.split('\n'), lb = b.split('\n');
+  let added=0, removed=0, html='';
+  const maxLen = Math.max(la.length, lb.length);
+  for (let i=0; i<maxLen; i++) {
+    let lineA = la[i]!==undefined ? (ignoreWS?la[i].trim():la[i]) : null;
+    let lineB = lb[i]!==undefined ? (ignoreWS?lb[i].trim():lb[i]) : null;
+    if (lineA===null) { html+=`<span class="diff-add">+ ${lineB}</span>\n`; added++; }
+    else if (lineB===null) { html+=`<span class="diff-del">- ${lineA}</span>\n`; removed++; }
+    else if (lineA===lineB) { html+=`  ${lineA}\n`; }
+    else { html+=`<span class="diff-del">- ${lineA}</span>\n<span class="diff-add">+ ${lineB}</span>\n`; added++; removed++; }
+  }
+  out.innerHTML = html || '<span class="text-ok">No differences found</span>';
+  stats.textContent = `+${added} added · -${removed} removed · ${Math.max(la.length,lb.length)} lines`;
+}
+
+// ════════════════════════════════════════════════════════
+// TIMESTAMP
+// ════════════════════════════════════════════════════════
+function setNowTimestamp() {
+  const ms = document.getElementById('ts-ms').checked;
+  document.getElementById('ts-epoch').value = ms ? Date.now() : Math.floor(Date.now()/1000);
+  tsConvert('from-epoch');
+}
+
+function tsConvert(dir) {
+  const ms  = document.getElementById('ts-ms').checked;
+  const res = document.getElementById('ts-result');
+  if (dir === 'from-epoch') {
+    let epoch = parseInt(document.getElementById('ts-epoch').value);
+    if (isNaN(epoch)) { res.innerHTML=''; return; }
+    if (!ms && epoch < 1e12) epoch *= 1000;
+    const d = new Date(epoch);
+    const fields = {'UTC':d.toUTCString(),'ISO 8601':d.toISOString(),'Local':d.toLocaleString(),
+      'Unix (s)':(d.getTime()/1000)|0,'Unix (ms)':d.getTime(),'Day of week':['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]};
+    res.innerHTML = Object.entries(fields).map(([k,v])=>`<div class="ip-result-item"><label>${k}</label><span class="mono">${v}</span></div>`).join('');
+    document.getElementById('ts-human').value = d.toISOString().slice(0,19).replace('T',' ');
+  } else {
+    try {
+      const d = new Date(document.getElementById('ts-human').value);
+      document.getElementById('ts-epoch').value = ms ? d.getTime() : Math.floor(d.getTime()/1000);
+      tsConvert('from-epoch');
+    } catch(e) {}
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// UUID / RANDOM
+// ════════════════════════════════════════════════════════
+function generateUUIDs() {
+  const count   = Math.min(100, parseInt(document.getElementById('uuid-count').value)||5);
+  const upper   = document.getElementById('uuid-upper').checked;
+  const noDash  = document.getElementById('uuid-no-dash').checked;
+  const arr = [];
+  for (let i=0; i<count; i++) {
+    let uuid = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+      (c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));
+    if (noDash) uuid = uuid.replace(/-/g,'');
+    if (upper)  uuid = uuid.toUpperCase();
+    arr.push(uuid);
+  }
+  document.getElementById('uuid-output').value = arr.join('\n');
+}
+
+function generateRandom() {
+  const type = document.getElementById('rand-type').value;
+  const len  = parseInt(document.getElementById('rand-len').value)||32;
+  const arr  = new Uint8Array(Math.ceil(len/2+4));
+  crypto.getRandomValues(arr);
+  let result = '';
+  if (type==='hex')    result = Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,len);
+  else if (type==='b64') result = btoa(String.fromCharCode(...arr)).replace(/=/g,'').slice(0,len);
+  else if (type==='num') { const big=new DataView(arr.buffer); result = (big.getUint32(0)%(len*10)).toString(); }
+  else if (type==='bytes') result = Array.from(arr.slice(0,Math.min(len,32))).map(b=>'0x'+b.toString(16).padStart(2,'0')).join(' ');
+  else if (type==='api-key') {
+    const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    result = Array.from(arr).map(b=>chars[b%chars.length]).join('').slice(0,len);
+    result = result.slice(0,8)+'-'+result.slice(8,16)+'-'+result.slice(16,24)+'-'+result.slice(24,32);
+  }
+  else if (type==='pin') result = Array.from(arr).map(b=>b%10).join('').slice(0,Math.min(len,16));
+  document.getElementById('rand-output').value = result;
+}
+
+// ════════════════════════════════════════════════════════
+// CERT INSPECTOR (PEM parse)
+// ════════════════════════════════════════════════════════
+function decodeCert() {
+  const raw = document.getElementById('cert-input').value.trim();
+  const out = document.getElementById('cert-output');
+  if (!raw) { out.innerHTML=''; return; }
+  try {
+    const b64 = raw.replace(/-----[^-]+-----/g,'').replace(/\s/g,'');
+    const der = atob(b64);
+    const bytes = new Uint8Array(der.length).map((_,i)=>der.charCodeAt(i));
+    // Basic DER/ASN.1 parsing — extract readable info
+    const hex = Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const info = {
+      'Format': 'X.509 PEM',
+      'Size': bytes.length + ' bytes',
+      'DER Hex (first 32B)': hex.slice(0,64)+'…',
+      'Header': raw.match(/-----([^-]+)-----/)?.[1]||'Unknown',
+      'Note': 'Full X.509 parsing requires server-side (OpenSSL). Use "openssl x509 -text -noout -in cert.pem" for full details.',
+    };
+    out.innerHTML = Object.entries(info).map(([k,v])=>`<div class="ip-result-item" style="${k==='Note'?'grid-column:span 2':''};"><label>${k}</label><span class="mono small" style="word-break:break-all">${v}</span></div>`).join('');
+  } catch(e) {
+    out.innerHTML = `<span class="text-danger small">Invalid PEM: ${e.message}</span>`;
+  }
+}
+</script>
+{% endblock %}

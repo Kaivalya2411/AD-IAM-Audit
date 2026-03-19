@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — AD/IAM Auditor{% endblock %}
+{% block breadcrumb %}Overview Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Security Overview</h1>
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="loadDashboard()">↺ Refresh</button>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row" id="kpiRow">
+  <div class="kpi-card danger">
+    <div class="kpi-icon">⊘</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="k-stale">—</div>
+      <div class="kpi-label">Stale Accounts</div>
+      <div class="kpi-sub">Inactive 90+ days</div>
+    </div>
+  </div>
+  <div class="kpi-card warn">
+    <div class="kpi-icon">⚡</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="k-priv">—</div>
+      <div class="kpi-label">Privileged Users</div>
+      <div class="kpi-sub">Admin level access</div>
+    </div>
+  </div>
+  <div class="kpi-card info">
+    <div class="kpi-icon">◈</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="k-total">—</div>
+      <div class="kpi-label">Total Identities</div>
+      <div class="kpi-sub">Across all OUs</div>
+    </div>
+  </div>
+  <div class="kpi-card ok">
+    <div class="kpi-icon">✓</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="k-compliant">—</div>
+      <div class="kpi-label">Compliant</div>
+      <div class="kpi-sub">Pass all checks</div>
+    </div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="kpi-icon">◎</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="k-score">—</div>
+      <div class="kpi-label">Security Score</div>
+      <div class="kpi-sub">Out of 100</div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="dash-grid">
+  <div class="panel span-2">
+    <div class="panel-hdr"><span class="panel-title">Risk Trend (30 Days)</span></div>
+    <div style="padding:0.75rem 1rem;min-height:160px"><canvas id="trendChart" height="100"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Account Status</span></div>
+    <div style="padding:0.75rem 1rem;min-height:160px"><canvas id="statusChart" height="140"></canvas></div>
+  </div>
+
+  <!-- Findings -->
+  <div class="panel span-2">
+    <div class="panel-hdr"><span class="panel-title">⚠ Active Findings</span></div>
+    <ul class="findings-list" id="findingsList">
+      <li class="finding info"><div class="finding-dot"></div><span>Loading…</span></li>
+    </ul>
+  </div>
+
+  <!-- Dept risk -->
+  <div class="panel">
+    <div class="panel-hdr"><span class="panel-title">Risk by Department</span></div>
+    <div style="padding:0.75rem 1rem;min-height:160px"><canvas id="deptChart" height="140"></canvas></div>
+  </div>
+
+  <!-- Recent events -->
+  <div class="panel span-3">
+    <div class="panel-hdr">
+      <span class="panel-title">Recent Events</span>
+      <a class="btn-xs" href="{{ url_for('main.audit') }}">All Events →</a>
+    </div>
+    <table class="table">
+      <thead><tr><th>User</th><th>Event</th><th>Target</th><th>Time</th><th>Result</th></tr></thead>
+      <tbody id="recentBody"><tr><td colspan="5" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+async function loadDashboard() {
+  const s = await API.get('/summary');
+  if (!s) return;
+  setText('k-stale',     s.stale);
+  setText('k-priv',      s.priv);
+  setText('k-total',     s.total);
+  setText('k-compliant', s.compliant);
+  setText('k-score',     s.score);
+  updateRiskPill(s.score);
+
+  document.getElementById('findingsList').innerHTML = s.findings.map(f => `
+    <li class="finding ${f.level}"><div class="finding-dot"></div><span>${f.text}</span></li>
+  `).join('');
+
+  document.getElementById('recentBody').innerHTML = (s.recent || []).map(e => `
+    <tr>
+      <td class="mono text-info">${e.user}</td>
+      <td>${typeBadge(e.type)}</td>
+      <td>${e.target}</td>
+      <td class="mono text-dim small">${e.time}</td>
+      <td>${resultBadge(e.result)}</td>
+    </tr>
+  `).join('');
+
+  renderStatusChart(s.status);
+  renderTrendChart(s.trend);
+  renderDeptChart(s.deptRisk);
+}
+loadDashboard();
+</script>
+{% endblock %}
