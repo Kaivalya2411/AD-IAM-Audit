@@ -53,7 +53,7 @@ async function loadReviews() {
       <td>${esc(r.resource)}</td>
       <td><span class="badge badge-dim">${esc(r.access_type)}</span></td>
       <td class="text-dim small">${r.granted_by||'—'}</td>
-      <td class="mono small ${r.review_due<today&&r.decision==='pending'?'text-danger':''}">${r.review_due} ${r.review_due<today&&r.decision==='pending'?'⚠':''}}</td>
+      <td class="mono small ${r.review_due<today&&r.decision==='pending'?'text-danger':''}">${r.review_due} ${r.review_due<today&&r.decision==='pending'?'⚠':''}</td>
       <td class="text-dim small">${r.reviewed_by||'—'}</td>
       <td>${decBadge(r.decision)}</td>
       <td class="small text-dim">${r.notes||'—'}</td>
