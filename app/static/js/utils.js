@@ -77,10 +77,19 @@ function updateRiskPill(score) {
 // ── Load risk score on every page ───────────────────────────
 (async function loadRiskPill() {
   try {
-    const res  = await fetch('/api/summary');
+    const res = await fetch('/api/summary', { credentials: 'same-origin' });
+    if (!res.ok) {
+      // Not logged in or error — show neutral state
+      const lbl = document.getElementById('riskLabel');
+      if (lbl) lbl.textContent = '—';
+      return;
+    }
     const data = await res.json();
     if (data.score !== undefined) updateRiskPill(data.score);
-  } catch {}
+  } catch {
+    const lbl = document.getElementById('riskLabel');
+    if (lbl) lbl.textContent = '—';
+  }
 })();
 
 // ── Toast ────────────────────────────────────────────────────

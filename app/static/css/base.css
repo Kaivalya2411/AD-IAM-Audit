@@ -40,7 +40,7 @@
   --shadow-md: 0 4px 16px rgba(0,0,0,0.50);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.60);
 
-  --t: 0.18s ease;
+  --t: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }

@@ -190,7 +190,7 @@
         <button class="topbar-avatar" id="userMenuBtn" onclick="toggleUserMenu()" title="{{ current_user.name if current_user else 'User' }}">
           {{ (current_user.name or 'A')[0]|upper if current_user else 'A' }}
         </button>
-        <div class="user-dropdown" id="userDropdown">
+        <div class="user-dropdown" id="userDropdown" style="display:none">
           <div class="ud-header">
             <div class="ud-name">{{ current_user.name if current_user else 'User' }}</div>
             <div class="ud-meta">
@@ -254,33 +254,74 @@
 <script>
 function toggleUserMenu() {
   const dd = document.getElementById('userDropdown');
-  dd.classList.toggle('open');
-  document.addEventListener('mousedown', function closeDD(e) {
-    if (!document.getElementById('userMenuWrap').contains(e.target)) {
-      dd.classList.remove('open');
-      document.removeEventListener('mousedown', closeDD);
-    }
-  });
+  const isOpen = dd.classList.contains('open');
+  // Close any open dropdown first
+  closeUserMenu();
+  if (!isOpen) {
+    dd.style.display = '';       /* clear inline style so CSS class takes over */
+    dd.classList.add('open');
+    // Single listener to close on outside click
+    setTimeout(() => {
+      document.addEventListener('mousedown', _closeUserMenuOutside, { once: true });
+    }, 0);
+  }
+}
+function _closeUserMenuOutside(e) {
+  const wrap = document.getElementById('userMenuWrap');
+  const dd   = document.getElementById('userDropdown');
+  if (dd && wrap && !wrap.contains(e.target) && !dd.contains(e.target)) {
+    closeUserMenu();
+  } else if (dd && dd.classList.contains('open')) {
+    // Still open — re-attach listener
+    document.addEventListener('mousedown', _closeUserMenuOutside, { once: true });
+  }
+}
+function closeUserMenu() {
+  const dd = document.getElementById('userDropdown');
+  if (dd) {
+    dd.classList.remove('open');
+    dd.style.display = 'none';   /* ensure hidden even if CSS class fails */
+  }
+  document.removeEventListener('mousedown', _closeUserMenuOutside);
 }
 </script>
 <style>
-.topbar-user-menu { position: relative; }
+.topbar-user-menu { position: static; }
 .topbar-avatar {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--cyan-dim); border: 1.5px solid var(--cyan);
   color: var(--cyan); font-family: var(--mono); font-size: .78rem;
   font-weight: 600; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .18s ease; flex-shrink: 0;
+  cursor: pointer; transition: background .18s ease; flex-shrink: 0;
 }
 .topbar-avatar:hover { background: rgba(56,189,248,.2); }
 .user-dropdown {
-  position: absolute; top: calc(100% + 8px); right: 0;
-  width: 210px; background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
-  z-index: 1000; opacity: 0; transform: translateY(-6px) scale(.97);
-  pointer-events: none; transition: all .18s ease; overflow: hidden;
+  position: fixed;
+  top: calc(var(--topbar-h) + 4px);
+  right: 1rem;
+  width: 220px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+  z-index: 9999;
+  display: none;           /* fully removed from render tree when closed */
+  opacity: 0;
+  transform: translateY(-6px) scale(.97);
+  pointer-events: none;
+  overflow: hidden;
 }
-.user-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+.user-dropdown.open {
+  display: block;          /* only rendered when explicitly opened */
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: all;
+  animation: ddFadeIn 0.15s ease forwards;
+}
+@keyframes ddFadeIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
 .ud-header { padding: .75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg3); }
 .ud-name   { font-size: .82rem; font-weight: 600; color: var(--text0); margin-bottom: .25rem; }
 .ud-meta   { display: flex; align-items: center; gap: .4rem; }
@@ -289,7 +330,7 @@ function toggleUserMenu() {
   display: flex; align-items: center; gap: .55rem;
   padding: .5rem .7rem; border-radius: 6px;
   font-size: .76rem; color: var(--text1); text-decoration: none;
-  transition: all .15s; cursor: pointer;
+  transition: background .15s, color .15s; cursor: pointer;
 }
 .ud-link:hover { background: var(--bg3); color: var(--text0); }
 .ud-link-danger { color: var(--red); }
@@ -315,11 +356,18 @@ function closeMobileSidebar() {
   document.getElementById('sidebarOverlay').classList.remove('show');
   document.body.style.overflow = '';
 }
-// Close sidebar when a nav link is clicked on mobile
+// Close sidebar + user dropdown on any navigation
 document.querySelectorAll('.nav-link').forEach(link => {
   link.addEventListener('click', () => {
     if (window.innerWidth <= 900) closeMobileSidebar();
+    closeUserMenu();
   });
+});
+
+// Hide dropdown instantly on page unload/navigation
+window.addEventListener('beforeunload', closeUserMenu);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') closeUserMenu();
 });
 </script>
 </body>

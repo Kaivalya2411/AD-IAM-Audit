@@ -58,8 +58,18 @@ const THEMES = [
 // ── Apply theme ───────────────────────────────────────────
 function applyTheme(id) {
   const theme = THEMES.find(t => t.id === id) || THEMES[0];
+
+  // Add transition class only for the brief switch duration
+  document.documentElement.classList.add('theme-switching');
   document.documentElement.setAttribute('data-theme', theme.id);
   localStorage.setItem('adaudit_theme', theme.id);
+
+  // Remove transition class after animation completes
+  clearTimeout(applyTheme._timer);
+  applyTheme._timer = setTimeout(() => {
+    document.documentElement.classList.remove('theme-switching');
+  }, 350);
+
   // Update all pickers if open
   document.querySelectorAll('.theme-chip').forEach(el => {
     el.classList.toggle('active', el.dataset.themeId === theme.id);

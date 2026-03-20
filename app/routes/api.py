@@ -84,25 +84,37 @@ def summary():
         dept_risk.setdefault(u['dept'],{'high':0,'total':0})
         dept_risk[u['dept']]['total']+=1
         if u['risk'] in ('critical','high'): dept_risk[u['dept']]['high']+=1
-    # Build real 30-day trend from audit_logs
+    # Build real 30-day trend — single query instead of 90
     from datetime import date, timedelta
-    today = date.today()
+    today     = date.today()
+    start_day = (today - timedelta(days=29)).strftime('%Y-%m-%d')
+
+    # One query: get all relevant events in last 30 days
+    raw_events = db.execute(
+        "SELECT substr(timestamp,1,10) as day, type, result "
+        "FROM audit_logs WHERE timestamp >= ?",
+        (start_day,)
+    ).fetchall()
+
+    # Build lookup dict from results
+    day_data = {}
+    for row in raw_events:
+        d = row['day']
+        if d not in day_data:
+            day_data[d] = {'critical': 0, 'high': 0, 'medium': 0}
+        if row['type'] == 'escalate':
+            day_data[d]['critical'] += 1
+        if row['result'] == 'failed':
+            day_data[d]['high'] += 1
+        if row['type'] in ('modify', 'delete'):
+            day_data[d]['medium'] += 1
+
+    # Build 30-day series filling zeros for empty days
     trend = []
     for i in range(29, -1, -1):
         day_date = (today - timedelta(days=i)).strftime('%Y-%m-%d')
-        day_num  = 30 - i
-        # Count events by severity/type for this day
-        critical = db.execute(
-            "SELECT COUNT(*) FROM audit_logs WHERE timestamp LIKE ? AND type='escalate'",
-            (day_date + '%',)).fetchone()[0]
-        high = db.execute(
-            "SELECT COUNT(*) FROM audit_logs WHERE timestamp LIKE ? AND result='failed'",
-            (day_date + '%',)).fetchone()[0]
-        medium = db.execute(
-            "SELECT COUNT(*) FROM audit_logs WHERE timestamp LIKE ? AND type IN ('modify','delete')",
-            (day_date + '%',)).fetchone()[0]
-        trend.append({'day': day_num, 'date': day_date,
-                      'critical': critical, 'high': high, 'medium': medium})
+        counts   = day_data.get(day_date, {'critical': 0, 'high': 0, 'medium': 0})
+        trend.append({'day': 30 - i, 'date': day_date, **counts})
     threats=db.execute("SELECT COUNT(*) FROM threats WHERE status='active'").fetchone()[0]
     recent=rows_to_list(db.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 5").fetchall())
     for e in recent:

@@ -266,11 +266,9 @@
 [data-theme] .tour-card-accent,
 [data-theme] .tour-btn-finish { background: linear-gradient(135deg, var(--accent), var(--purple)); }
 
-/* Transition all background/color changes smoothly on theme switch */
-*, *::before, *::after {
-  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
-}
-/* But NOT transforms/opacity/layout — would slow animations */
-.btn, button, .nav-link, .badge, .tk-tab {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease;
+/* Theme transition — only applied for 300ms during theme switch via JS */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease !important;
 }
