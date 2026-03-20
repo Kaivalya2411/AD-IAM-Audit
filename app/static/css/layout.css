@@ -169,8 +169,8 @@ body {
 }
 .nav-link:hover { color: var(--text1); background: rgba(255,255,255,0.05); }
 .nav-link.active {
-  color: var(--cyan);
-  background: rgba(56,189,248,0.1);
+  color: var(--accent);
+  background: var(--accent-dim);
   font-weight: 600;
 }
 .nav-link.active:visited { color: var(--cyan); }

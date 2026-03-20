@@ -66,31 +66,6 @@ def _create_tables(conn):
         active INTEGER DEFAULT 1);
     """)
 
-    # Performance indexes on frequently filtered columns
-    conn.executescript("""
-    CREATE INDEX IF NOT EXISTS idx_users_status      ON users(status);
-    CREATE INDEX IF NOT EXISTS idx_users_risk        ON users(risk);
-    CREATE INDEX IF NOT EXISTS idx_users_dept        ON users(dept);
-    CREATE INDEX IF NOT EXISTS idx_audit_timestamp   ON audit_logs(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_audit_type        ON audit_logs(type);
-    CREATE INDEX IF NOT EXISTS idx_audit_result      ON audit_logs(result);
-    CREATE INDEX IF NOT EXISTS idx_audit_username    ON audit_logs(username);
-    CREATE INDEX IF NOT EXISTS idx_threats_status    ON threats(status);
-    CREATE INDEX IF NOT EXISTS idx_anomalies_status  ON anomalies(status);
-    CREATE INDEX IF NOT EXISTS idx_anomalies_sev     ON anomalies(severity);
-    CREATE INDEX IF NOT EXISTS idx_soc_status        ON soc_alerts(status);
-    CREATE INDEX IF NOT EXISTS idx_soc_severity      ON soc_alerts(severity);
-    CREATE INDEX IF NOT EXISTS idx_compliance_fw     ON compliance_checks(framework);
-    CREATE INDEX IF NOT EXISTS idx_compliance_status ON compliance_checks(status);
-    CREATE INDEX IF NOT EXISTS idx_assets_status     ON assets(status);
-    CREATE INDEX IF NOT EXISTS idx_assets_risk       ON assets(risk);
-    CREATE INDEX IF NOT EXISTS idx_assets_type       ON assets(type);
-    CREATE INDEX IF NOT EXISTS idx_pw_status         ON password_expiry(status);
-    CREATE INDEX IF NOT EXISTS idx_sessions_status   ON sessions(status);
-    CREATE INDEX IF NOT EXISTS idx_reviews_decision  ON access_reviews(decision);
-    CREATE INDEX IF NOT EXISTS idx_timeline_cat      ON timeline(category);
-    CREATE INDEX IF NOT EXISTS idx_timeline_sev      ON timeline(severity);
-    """)
     conn.commit()
 
 def hash_password(password, salt=None):
@@ -322,6 +297,33 @@ def migrate_db():
     if conn.execute("SELECT COUNT(*) FROM password_expiry").fetchone()[0] == 0:
         _seed_new(conn)
         print("  ✓ New audit tables seeded")
+
+    # Performance indexes (all tables guaranteed to exist at this point)
+    conn.executescript("""
+    CREATE INDEX IF NOT EXISTS idx_users_status      ON users(status);
+    CREATE INDEX IF NOT EXISTS idx_users_risk        ON users(risk);
+    CREATE INDEX IF NOT EXISTS idx_users_dept        ON users(dept);
+    CREATE INDEX IF NOT EXISTS idx_audit_timestamp   ON audit_logs(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_audit_type        ON audit_logs(type);
+    CREATE INDEX IF NOT EXISTS idx_audit_result      ON audit_logs(result);
+    CREATE INDEX IF NOT EXISTS idx_audit_username    ON audit_logs(username);
+    CREATE INDEX IF NOT EXISTS idx_threats_status    ON threats(status);
+    CREATE INDEX IF NOT EXISTS idx_anomalies_status  ON anomalies(status);
+    CREATE INDEX IF NOT EXISTS idx_anomalies_sev     ON anomalies(severity);
+    CREATE INDEX IF NOT EXISTS idx_soc_status        ON soc_alerts(status);
+    CREATE INDEX IF NOT EXISTS idx_soc_severity      ON soc_alerts(severity);
+    CREATE INDEX IF NOT EXISTS idx_compliance_fw     ON compliance_checks(framework);
+    CREATE INDEX IF NOT EXISTS idx_compliance_status ON compliance_checks(status);
+    CREATE INDEX IF NOT EXISTS idx_assets_status     ON assets(status);
+    CREATE INDEX IF NOT EXISTS idx_assets_risk       ON assets(risk);
+    CREATE INDEX IF NOT EXISTS idx_assets_type       ON assets(type);
+    CREATE INDEX IF NOT EXISTS idx_pw_status         ON password_expiry(status);
+    CREATE INDEX IF NOT EXISTS idx_sessions_status   ON sessions(status);
+    CREATE INDEX IF NOT EXISTS idx_reviews_decision  ON access_reviews(decision);
+    CREATE INDEX IF NOT EXISTS idx_timeline_cat      ON timeline(category);
+    CREATE INDEX IF NOT EXISTS idx_timeline_sev      ON timeline(severity);
+    """)
+    conn.commit()
     conn.close()
 
 

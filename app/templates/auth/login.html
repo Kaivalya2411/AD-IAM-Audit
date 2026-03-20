@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sign In — AD/IAM Auditor</title>
   <script>
-    (function(){ var t=localStorage.getItem('adaudit_theme')||'ocean'; document.documentElement.setAttribute('data-theme',t); })();
+    (function(){ var t=localStorage.getItem('adaudit_theme')||'ocean'; if(t==='light')t='arctic'; document.documentElement.setAttribute('data-theme',t); })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
   <style>
     /* ── Login page layout ───────────────────── */
     html, body {
@@ -363,6 +363,57 @@
       text-align: center;
     }
 
+    /* ── Light theme overrides for login page ──── */
+    [data-theme="arctic"]  .login-left,
+    [data-theme="ivory"]   .login-left,
+    [data-theme="blossom"] .login-left,
+    [data-theme="sage"]    .login-left {
+      background: var(--bg3);
+      border-right-color: var(--border);
+    }
+    [data-theme="arctic"]  .login-left::before,
+    [data-theme="ivory"]   .login-left::before,
+    [data-theme="blossom"] .login-left::before,
+    [data-theme="sage"]    .login-left::before {
+      background-image:
+        linear-gradient(var(--accent-dim) 1px, transparent 1px),
+        linear-gradient(90deg, var(--accent-dim) 1px, transparent 1px);
+    }
+    [data-theme="arctic"]  .login-feature,
+    [data-theme="ivory"]   .login-feature,
+    [data-theme="blossom"] .login-feature,
+    [data-theme="sage"]    .login-feature {
+      background: var(--bg1);
+      border-color: var(--border);
+    }
+    [data-theme="arctic"]  .lf-input,
+    [data-theme="ivory"]   .lf-input,
+    [data-theme="blossom"] .lf-input,
+    [data-theme="sage"]    .lf-input {
+      background: var(--bg1);
+      border-color: var(--border2);
+      color: var(--text0);
+    }
+    [data-theme="arctic"]  .lf-input::placeholder,
+    [data-theme="ivory"]   .lf-input::placeholder,
+    [data-theme="blossom"] .lf-input::placeholder,
+    [data-theme="sage"]    .lf-input::placeholder { color: var(--text2); }
+    [data-theme="arctic"]  .lf-demo,
+    [data-theme="ivory"]   .lf-demo,
+    [data-theme="blossom"] .lf-demo,
+    [data-theme="sage"]    .lf-demo {
+      background: var(--bg3);
+      border-color: var(--border);
+    }
+    [data-theme="arctic"]  .lf-demo-fill,
+    [data-theme="ivory"]   .lf-demo-fill,
+    [data-theme="blossom"] .lf-demo-fill,
+    [data-theme="sage"]    .lf-demo-fill { border-color: var(--border2); }
+    [data-theme="arctic"]  .lf-submit,
+    [data-theme="ivory"]   .lf-submit,
+    [data-theme="blossom"] .lf-submit,
+    [data-theme="sage"]    .lf-submit { color: #ffffff; }
+
     /* Responsive — stack on small screens */
     @media (max-width: 720px) {
       body { grid-template-columns: 1fr; }
@@ -557,14 +608,28 @@ document.getElementById('loginForm').addEventListener('submit', function() {
 
 // Apply theme accent to submit button
 (function() {
-  const theme = localStorage.getItem('adaudit_theme') || 'ocean';
+  let theme = localStorage.getItem('adaudit_theme') || 'ocean';
+  if (theme === 'light') theme = 'arctic';
   const accents = {
-    ocean: '#38bdf8', midnight: '#a78bfa', forest: '#4ade80',
-    sunset: '#fb923c', rose: '#f472b6', slate: '#60a5fa',
-    contrast: '#00e5ff', light: '#6366f1'
+    ocean:    '#38bdf8',
+    midnight: '#a78bfa',
+    forest:   '#4ade80',
+    sunset:   '#fb923c',
+    rose:     '#f472b6',
+    slate:    '#60a5fa',
+    contrast: '#00e5ff',
+    arctic:   '#2563eb',
+    ivory:    '#0d9488',
+    blossom:  '#e11d48',
+    sage:     '#16a34a',
   };
   const btn = document.querySelector('.lf-submit');
-  if (btn && accents[theme]) btn.style.background = accents[theme];
+  if (btn && accents[theme]) {
+    btn.style.background = accents[theme];
+    // Light themes need white text
+    const lightThemes = ['arctic','ivory','blossom','sage'];
+    if (lightThemes.includes(theme)) btn.style.color = '#ffffff';
+  }
 })();
 </script>
 </body>

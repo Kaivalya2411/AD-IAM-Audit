@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <script>
-    (function(){ var t=localStorage.getItem('adaudit_theme')||'ocean'; document.documentElement.setAttribute('data-theme',t); })();
+    (function(){ var t=localStorage.getItem('adaudit_theme')||'ocean'; if(t==='light')t='arctic'; document.documentElement.setAttribute('data-theme',t); })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=5.0"/>
   <title>{% block title %}AD/IAM Auditor{% endblock %}</title>
@@ -12,8 +12,8 @@
   <meta name="user-name" content="{{ current_user.name if current_user else '' }}"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tour.css') }}">

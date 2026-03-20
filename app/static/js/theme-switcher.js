@@ -48,10 +48,28 @@ const THEMES = [
     preview: ['#0a0a0a','#111111','#00e5ff'],
   },
   {
-    id:      'light',
-    name:    'Light',
-    desc:    'Clean & bright',
-    preview: ['#ffffff','#f8f9fa','#6366f1'],
+    id:      'arctic',
+    name:    'Arctic',
+    desc:    'Clean white + blue',
+    preview: ['#f0f4f8','#ffffff','#2563eb'],
+  },
+  {
+    id:      'ivory',
+    name:    'Ivory',
+    desc:    'Warm white + teal',
+    preview: ['#faf8f5','#ffffff','#0d9488'],
+  },
+  {
+    id:      'blossom',
+    name:    'Blossom',
+    desc:    'Soft pink + rose',
+    preview: ['#fdf4f7','#ffffff','#e11d48'],
+  },
+  {
+    id:      'sage',
+    name:    'Sage',
+    desc:    'Natural green',
+    preview: ['#f2f7f4','#ffffff','#16a34a'],
   },
 ];
 
@@ -84,7 +102,9 @@ function applyTheme(id) {
 
 // ── Load saved theme on boot ──────────────────────────────
 (function initTheme() {
-  const saved = localStorage.getItem('adaudit_theme') || 'ocean';
+  let saved = localStorage.getItem('adaudit_theme') || 'ocean';
+  // Migrate old 'light' theme to 'arctic'
+  if (saved === 'light') { saved = 'arctic'; localStorage.setItem('adaudit_theme', 'arctic'); }
   document.documentElement.setAttribute('data-theme', saved);
 })();
 
@@ -153,7 +173,8 @@ function toggleThemePicker() {
 // ── Inject topbar button + styles once DOM is ready ───────
 document.addEventListener('DOMContentLoaded', () => {
   // Re-apply saved theme (also done above but ensures DOM is ready)
-  const saved = localStorage.getItem('adaudit_theme') || 'ocean';
+  let saved = localStorage.getItem('adaudit_theme') || 'ocean';
+  if (saved === 'light') saved = 'arctic';
   applyTheme(saved);
 
   // Inject theme button into topbar-right
